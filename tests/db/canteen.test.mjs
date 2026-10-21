@@ -332,7 +332,8 @@ test('consigned items are sold through daily sales but never touch stock', async
     { name: 'Spaghetti', consignee: 'Judy Ann', selling_price: 20 },
     { name: 'Hot cake', consignee: 'Judy Ann', selling_price: 10 }, // duplicate in list
   ]]);
-  assert.deepEqual(res, { created: 3, skipped: 1, new_consignees: 2 });
+  // 'Hot cake / Judy Ann' already exists: it was typed on an earlier daily sales sheet and saved automatically
+  assert.deepEqual(res, { created: 2, skipped: 2, new_consignees: 1 });
   const [{ import_products: again }] = await db.as(admin, 'select public.import_products($1)', [[{ name: 'hot cake', consignee: 'judy ann', selling_price: 10 }]]);
   assert.equal(again.created, 0, 're-running the import never duplicates');
 
@@ -386,4 +387,45 @@ test('day sheet: canteen share and consignee remittance per line', async () => {
   await db.as(staff, 'select public.finalize_daily_sale($1)', [s.id]);
   const [r] = await db.sql(`select daily_canteen_shares from public.report_daily_summary('2026-03-09', '2026-03-09')`);
   assert.equal(num(r.daily_canteen_shares), 158, 'reports use the same per-line rule');
+});
+
+// ------------------------------------------- products typed on the sheet
+test('typed products and consignees are saved to the lists automatically', async () => {
+  const lines = [
+    { item_name: 'Kakanin', consignee: 'Bebeth', total_quantity: 20, unit_price: 12, sold_quantity: 15, cost_price: 10 },
+    { item_name: 'Mystery snack', total_quantity: 5, unit_price: 5, sold_quantity: 1 }, // no consignee → not saved
+  ];
+  const [{ save_daily_sale: s }] = await db.as(staff, 'select public.save_daily_sale(null, $1, null, null, $2)', ['2026-03-10', lines]);
+  assert.equal(s.new_products, 1);
+  assert.equal(s.new_consignees, 1);
+  const [p] = await db.sql(`select * from public.v_inventory_items where name = 'Kakanin'`);
+  assert.equal(p.is_consigned, true);
+  assert.equal(p.consignee_name, 'Bebeth');
+  assert.equal(num(p.selling_price), 12);
+  assert.equal(num(p.unit_cost), 10);
+  const saved = await db.sql('select inventory_item_id, item_name_snapshot from public.daily_sale_items where daily_sale_id = $1 order by line_no', [s.id]);
+  assert.equal(saved[0].inventory_item_id, p.id, 'row linked to the new product');
+  assert.equal(saved[1].inventory_item_id, null);
+  // saving again (or typing the same names another day) never duplicates
+  const [{ save_daily_sale: s2 }] = await db.as(staff, 'select public.save_daily_sale($1, $2, null, null, $3)', [s.id, '2026-03-10', lines]);
+  assert.equal(s2.new_products + s2.new_consignees, 0);
+  assert.equal((await db.sql(`select count(*)::int as n from public.inventory_items where name = 'Kakanin'`))[0].n, 1);
+  assert.equal((await db.sql(`select count(*)::int as n from public.consignees where name = 'Bebeth'`))[0].n, 1);
+});
+
+test('spreadsheet sync can be repeated without duplicates; review rows stay open', async () => {
+  const rows = [
+    { row_ref: 'E!B30', status: 'valid', mapped: { transaction_date: '2026-02-26', transaction_type: 'sale', description: 'Iced water', requested_by: 'Canteen-in-charge', amount: 140, occurrence: 1 } },
+    { row_ref: 'E!B31', status: 'review', mapped: { transaction_date: '2026-02-26', transaction_type: null, description: 'Unknown', amount: 5, occurrence: 1 } },
+  ];
+  const batch = { file_name: 'CANTEEN REPORT.xlsx', sheet_name: 'EXPENSES & OTHER SALES', target: 'financial_transactions' };
+  const [{ stage_import: b1 }] = await db.as(admin, 'select public.stage_import($1, $2)', [batch, rows]);
+  await db.as(admin, 'select public.sync_commit_import_batch($1)', [b1]);
+  const [st] = await db.sql('select status from public.import_batches where id = $1', [b1]);
+  assert.equal(st.status, 'staged', 'batch stays open while a row needs review');
+  // second sync of the same spreadsheet
+  const [{ stage_import: b2 }] = await db.as(admin, 'select public.stage_import($1, $2)', [batch, rows]);
+  const second = await db.sql('select status from public.import_rows where batch_id = $1 order by row_ref', [b2]);
+  assert.deepEqual(second.map((r) => r.status), ['duplicate', 'duplicate']);
+  assert.equal((await db.sql(`select count(*)::int as n from public.financial_transactions where description = 'Iced water' and transaction_date = '2026-02-26'`))[0].n, 1);
 });

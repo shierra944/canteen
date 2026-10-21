@@ -7,9 +7,10 @@ Cebu City) that replaces the `CANTEEN REPORT.xlsx` workbook. It covers:
 - daily sales
 - expenses, other sales and deficits
 - consolidated and monthly reports
-- fund allocation
 - audit log
-- Excel migration
+- spreadsheet migration and sync
+
+Fund allocation was removed from the app at the school's request. Its database tables are kept, unused, so nothing is lost if it is needed later.
 
 **Stack:** React 18 + TypeScript + Vite, Tailwind CSS, Radix UI primitives (shadcn-style), Lucide
 icons, Recharts, Supabase (Postgres, Auth, RLS, Edge Functions), deployable on Vercel.
@@ -67,9 +68,11 @@ npm run typecheck
 
 Never put the `service_role` key in a `VITE_*` variable or anywhere in the frontend.
 
-## Migrating the workbook
+## Migrating and syncing the workbook
 
-Go to *Settings → Excel import* and upload `CANTEEN REPORT.xlsx`. Import the sheets in this order:
+Go to *Settings → Data migration & sync*, choose `CANTEEN REPORT.xlsx` and click **Sync now**. It imports, in order: products and consignees, past daily sales, expenses and other sales, and the SUMMARY figures (for reconciliation). Anything already in the app is skipped, so you can upload the updated spreadsheet again at any time and only new days and entries are added. Rows with problems are held for review and linked from the results.
+
+For full control, the step-by-step wizard (same tab → *Open the import wizard*) imports one sheet at a time, in this order:
 
 1. **DAILY SALES.** Each day block becomes a finalized historical record. Imported records do not change current inventory.
 2. **EXPENSES & OTHER SALES.** Each row becomes a sale, expense or deficit transaction.

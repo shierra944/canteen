@@ -49,10 +49,6 @@ export const LEDGER_KIND_LABEL: Record<string, string> = {
   sale: 'Other sale',
   expense: 'Expense',
   deficit: 'Deficit',
-  fund_allocation: 'Fund allocation',
-  fund_expenditure: 'Fund expenditure',
-  fund_adjustment: 'Fund adjustment',
-  fund_opening: 'Fund opening balance',
   cash_carryover: 'Cash carry-over',
   inventory_opening: 'Opening stock',
   inventory_stock_in_reversal: 'Stock-in reversal',
@@ -68,7 +64,7 @@ export const LEDGER_KIND_LABEL: Record<string, string> = {
 export const PERMISSION_GROUPS: { title: string; codes: string[] }[] = [
   { title: 'Reports', codes: ['reports.view', 'reports.export', 'audit.view'] },
   { title: 'Daily sales', codes: ['sales.record', 'sales.finalize', 'sales.correct'] },
-  { title: 'Finance', codes: ['finance.record', 'finance.correct', 'funds.manage'] },
+  { title: 'Finance', codes: ['finance.record', 'finance.correct'] },
   { title: 'Inventory', codes: ['inventory.manage', 'inventory.stock_in', 'inventory.adjust', 'inventory.negative_exception'] },
   { title: 'Administration', codes: ['users.manage', 'settings.manage', 'import.run'] },
 ];

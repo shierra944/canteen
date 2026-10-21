@@ -1,9 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { BadgeCheck, Boxes, CalendarRange, Calculator, FileSpreadsheet, FileText, Plus, School, Tags, Trash2, Upload } from 'lucide-react';
+import { BadgeCheck, Boxes, CalendarRange, Calculator, FileSpreadsheet, FileText, Plus, RefreshCw, School, Tags, Trash2, Upload } from 'lucide-react';
+import { SyncPanel } from './SyncPanel';
 import { useAuth } from '@/providers/auth';
 import { rpc, supabase, unwrap } from '@/lib/supabase';
-import { keys, useAction, useFinCategories, useFundCategories, useSchoolYears, useSettings } from '@/lib/queries';
+import { keys, useAction, useFinCategories, useSchoolYears, useSettings } from '@/lib/queries';
 import { ADJUSTMENT_TYPES, FIN_TYPE_LABEL } from '@/lib/labels';
 import { formatDate, formatDateTime, toNumber } from '@/lib/utils';
 import type { FinTxnType, SchoolSettings, Signatory } from '@/lib/types';
@@ -36,10 +37,10 @@ export default function SettingsPage() {
               <TabsTrigger value="inventory" icon={<Boxes />}>Inventory</TabsTrigger>
               <TabsTrigger value="reports" icon={<FileText />}>Reports</TabsTrigger>
               <TabsTrigger value="years" icon={<CalendarRange />}>School years</TabsTrigger>
-              <TabsTrigger value="categories" icon={<Tags />}>Categories & funds</TabsTrigger>
+              <TabsTrigger value="categories" icon={<Tags />}>Categories</TabsTrigger>
             </>
           )}
-          {can('import.run') && <TabsTrigger value="import" icon={<FileSpreadsheet />}>Excel import</TabsTrigger>}
+          {can('import.run') && <TabsTrigger value="import" icon={<RefreshCw />}>Data migration & sync</TabsTrigger>}
         </TabsList>
         {isLoading || !settings ? (
           <Skeleton className="h-96" />
@@ -52,12 +53,12 @@ export default function SettingsPage() {
             <TabsContent value="years"><YearsTab /></TabsContent>
             <TabsContent value="categories"><CategoriesTab /></TabsContent>
             <TabsContent value="import">
+              <SyncPanel />
               <Card>
-                <CardHeader title="Excel import & data migration" description="Bring historical records from CANTEEN REPORT.xlsx into the system through a reviewed, de-duplicated import." icon={<Upload />} />
-                <CardBody className="space-y-4 text-sm text-ink-muted">
-                  <p>Upload the workbook, choose a sheet (SUMMARY, DAILY SALES, EXPENSES & OTHER SALES, or any sheet listing expenses/other sales), preview and validate every row, then import approved rows. Excel formulas are never imported as values — totals are recalculated from the underlying rows.</p>
-                  <Button asChild>
-                    <Link to="/settings/import"><Upload /> Open import wizard</Link>
+                <CardHeader title="Step-by-step import (advanced)" description="Choose one sheet, preview and fix rows one by one before importing — or map the columns of any other sheet that lists expenses or other sales." icon={<FileSpreadsheet />} />
+                <CardBody>
+                  <Button asChild variant="secondary">
+                    <Link to="/settings/import"><Upload /> Open the import wizard & import history</Link>
                   </Button>
                 </CardBody>
               </Card>
@@ -170,15 +171,12 @@ function FinancialTab({ s }: { s: SchoolSettings }) {
             <option value="net_cash_flow">Actual money vs. sales amount + other sales − expenses − deficit</option>
           </Select>
         </Row>
-        <Row label="Require 100% fund allocation" hint="When on, an allocation rule can only be activated if its percentages total exactly 100%.">
-          <Switch checked={f.require_full_allocation} onChange={(v) => setF({ ...f, require_full_allocation: v })} label="Require full allocation" />
-        </Row>
         <Row label="Currency">
           <Input value="Philippine peso (PHP, ₱)" disabled className="max-w-sm" />
         </Row>
         <SaveBar
           loading={save.isPending}
-          onSave={() => save.mutate({ canteen_share_rate: f.canteen_share_rate, deduct_deficit_in_net: f.deduct_deficit_in_net, cash_variance_basis: f.cash_variance_basis, require_full_allocation: f.require_full_allocation })}
+          onSave={() => save.mutate({ canteen_share_rate: f.canteen_share_rate, deduct_deficit_in_net: f.deduct_deficit_in_net, cash_variance_basis: f.cash_variance_basis })}
         />
       </Card>
       <ConfirmDialog
@@ -359,26 +357,15 @@ function YearsTab() {
 
 function CategoriesTab() {
   const { data: cats = [] } = useFinCategories();
-  const { data: funds = [] } = useFundCategories();
   const [f, setF] = useState({ name: '', transaction_type: 'expense' as FinTxnType });
-  const [fund, setFund] = useState({ code: '', name: '' });
   const add = useAction(async () => unwrap(await supabase.from('financial_categories').insert({ ...f, sort_order: 50 }).select('id').single()), {
     success: 'Category added.',
     invalidate: [keys.finCategories],
     onSuccess: () => setF({ ...f, name: '' }),
   });
   const toggle = useAction(async ({ id, is_active }: { id: string; is_active: boolean }) => unwrap(await supabase.from('financial_categories').update({ is_active }).eq('id', id).select('id').single()), { invalidate: [keys.finCategories] });
-  const addFund = useAction(async () => unwrap(await supabase.from('fund_categories').insert({ code: fund.code.toUpperCase(), name: fund.name, sort_order: 100 }).select('id').single()), {
-    success: 'Fund added.',
-    invalidate: [keys.funds],
-    onSuccess: () => setFund({ code: '', name: '' }),
-  });
-  const toggleFund = useAction(
-    async ({ id, patch }: { id: string; patch: Record<string, boolean> }) => unwrap(await supabase.from('fund_categories').update(patch).eq('id', id).select('id').single()),
-    { invalidate: [keys.funds] },
-  );
   return (
-    <div className="grid gap-5 xl:grid-cols-2">
+    <div className="grid gap-5">
       <Card>
         <CardHeader title="Transaction categories" description="Configurable detail under Sale / Expense / Deficit." />
         <CardBody>
@@ -400,31 +387,6 @@ function CategoriesTab() {
                 <TD className="text-ink-muted">{FIN_TYPE_LABEL[c.transaction_type]}</TD>
                 <TD>{c.name}</TD>
                 <TD align="right"><Switch checked={c.is_active} onChange={(v) => toggle.mutate({ id: c.id, is_active: v })} label={c.name} /></TD>
-              </TR>
-            ))}
-          </tbody>
-        </Table>
-      </Card>
-      <Card>
-        <CardHeader title="Fund categories" description="Workbook TYPE OF FUNDS. Percentages are set in Fund Allocation → Allocation rules." />
-        <CardBody>
-          <form className="flex flex-wrap gap-2" onSubmit={(e) => { e.preventDefault(); if (fund.code && fund.name) addFund.mutate(undefined); }}>
-            <Input className="w-28" placeholder="Code" value={fund.code} onChange={(e) => setFund({ ...fund, code: e.target.value })} />
-            <div className="flex-1"><Input placeholder="Fund name" value={fund.name} onChange={(e) => setFund({ ...fund, name: e.target.value })} /></div>
-            <Button type="submit" loading={addFund.isPending}><Plus /> Add</Button>
-          </form>
-        </CardBody>
-        <Table>
-          <THead><tr><TH>Fund</TH><TH align="center">Allocatable</TH><TH align="right">Active</TH></tr></THead>
-          <tbody>
-            {funds.map((x) => (
-              <TR key={x.id}>
-                <TD>
-                  <div className="font-medium">{x.name}</div>
-                  <div className="font-mono text-[11px] text-ink-muted">{x.code}</div>
-                </TD>
-                <TD align="center"><Switch checked={x.is_allocatable} onChange={(v) => toggleFund.mutate({ id: x.id, patch: { is_allocatable: v } })} label={`${x.name} allocatable`} /></TD>
-                <TD align="right"><Switch checked={x.is_active} onChange={(v) => toggleFund.mutate({ id: x.id, patch: { is_active: v } })} label={`${x.name} active`} /></TD>
               </TR>
             ))}
           </tbody>

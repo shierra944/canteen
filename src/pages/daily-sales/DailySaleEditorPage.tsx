@@ -1,11 +1,26 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useBlocker, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, Copy, CopyPlus, HandCoins, Lock, Plus, Save, Scale, ShieldAlert, Trash2, TrendingUp, Unlock } from 'lucide-react';
+import {
+  ArrowLeft,
+  CheckCircle2,
+  Copy,
+  HandCoins,
+  History,
+  Lock,
+  Plus,
+  Save,
+  Scale,
+  ShieldAlert,
+  Sheet,
+  Trash2,
+  TrendingUp,
+  Unlock,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/providers/auth';
 import { useApp } from '@/providers/app';
-import { rpc, supabase, unwrap } from '@/lib/supabase';
+import { rpc, supabase } from '@/lib/supabase';
 import { FINANCIAL_KEYS, keys, useConsignees, useDailySale, useDailySummary, useInventory, useInvalidate } from '@/lib/queries';
 import { calcLine, calcTotals, lineMoney } from '@/lib/calc';
 import { cn, formatDate, formatDateTime, peso, qty, toNumber, todayPH, uuid } from '@/lib/utils';
@@ -16,20 +31,25 @@ import { Checkbox, Field, Input, Textarea, needsInputClass } from '@/components/
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Callout, ErrorState, Skeleton } from '@/components/ui/feedback';
 import { ConfirmDialog } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ReasonDialog } from '@/components/shared';
 import { ExportMenu, PrintableReport } from '@/components/OfficialReport';
 import type { OfficialReport } from '@/lib/export/report';
 import { ItemDialog } from '@/pages/inventory/dialogs';
-import { ItemPicker } from './ItemPicker';
+import { SheetCombobox, type ComboOption } from './SheetCombobox';
+import { HistoryPanel, type HistoryLine } from './HistoryPanel';
 
 interface Line {
   key: string;
   inventory_item_id: string | null;
   item_name: string;
+  itemManual: boolean;
   consignee: string;
+  consigneeManual: boolean;
   total_quantity: string;
   unit_price: string;
   sold_quantity: string;
+  unsold_quantity: string;
   share_quantity: string;
   shareTouched: boolean;
   cost_price: string;
@@ -40,33 +60,43 @@ const newLine = (): Line => ({
   key: uuid(),
   inventory_item_id: null,
   item_name: '',
+  itemManual: false,
   consignee: '',
+  consigneeManual: false,
   total_quantity: '',
   unit_price: '',
   sold_quantity: '',
+  unsold_quantity: '',
   share_quantity: '',
   shareTouched: false,
   cost_price: '',
   is_canteen_stock: false,
 });
 
-function fromItems(items: DailySaleItem[]): Line[] {
+const num = (v: unknown) => String(toNumber(v));
+
+function fromItems(items: DailySaleItem[], consigneeNames: Set<string>): Line[] {
   return items.map((i) => ({
     key: i.id,
     inventory_item_id: i.inventory_item_id,
     item_name: i.item_name_snapshot,
+    itemManual: !i.inventory_item_id,
     consignee: i.consignee ?? '',
-    total_quantity: String(toNumber(i.total_quantity)),
-    unit_price: String(toNumber(i.unit_price)),
-    sold_quantity: String(toNumber(i.sold_quantity)),
-    share_quantity: String(toNumber(i.share_quantity)),
+    consigneeManual: Boolean(i.consignee) && !consigneeNames.has((i.consignee ?? '').trim().toLowerCase()),
+    total_quantity: num(i.total_quantity),
+    unit_price: num(i.unit_price),
+    sold_quantity: num(i.sold_quantity),
+    unsold_quantity: num(i.unsold_quantity),
+    share_quantity: num(i.share_quantity),
     shareTouched: toNumber(i.share_quantity) !== toNumber(i.sold_quantity),
-    cost_price: i.cost_price === null ? '' : String(toNumber(i.cost_price)),
+    cost_price: i.cost_price === null ? '' : num(i.cost_price),
     is_canteen_stock: i.is_canteen_stock,
   }));
 }
 
 const n = (v: string) => (v === '' ? 0 : Number(v));
+// avoid float noise like 0.30000000000000004 in derived quantities
+const diff = (a: string, b: string) => String(Math.round((Number(a) - Number(b)) * 1000) / 1000);
 
 export default function DailySaleEditorPage() {
   const { id } = useParams();
@@ -81,12 +111,14 @@ export default function DailySaleEditorPage() {
   const { data: inventory = [] } = useInventory();
   const { data: consignees = [] } = useConsignees();
   const invById = useMemo(() => new Map(inventory.map((i) => [i.id, i])), [inventory]);
+  const consigneeNames = useMemo(() => new Set(consignees.map((c) => c.name.trim().toLowerCase())), [consignees]);
 
   const [date, setDate] = useState(params.get('date') ?? workingDate);
   const [actualMoney, setActualMoney] = useState('');
   const [remarks, setRemarks] = useState('');
   const [lines, setLines] = useState<Line[]>(() => [newLine()]);
   const [dirty, setDirty] = useState(false);
+  const [tab, setTab] = useState<'sheet' | 'history'>('sheet');
   const [busy, setBusy] = useState<null | 'save' | 'finalize' | 'reopen' | 'delete'>(null);
   const [confirmFinalize, setConfirmFinalize] = useState(false);
   const [exception, setException] = useState<{ allow: boolean; reason: string; message: string } | null>(null);
@@ -103,11 +135,11 @@ export default function DailySaleEditorPage() {
   useEffect(() => {
     if (!data || dirty) return;
     setDate(data.sale.sale_date);
-    setActualMoney(data.sale.actual_money === null ? '' : String(toNumber(data.sale.actual_money)));
+    setActualMoney(data.sale.actual_money === null ? '' : num(data.sale.actual_money));
     setRemarks(data.sale.remarks ?? '');
-    setLines(data.items.length ? fromItems(data.items) : [newLine()]);
+    setLines(data.items.length ? fromItems(data.items, consigneeNames) : [newLine()]);
     loadedVersion.current = data.sale.version;
-  }, [data, dirty]);
+  }, [data, dirty, consigneeNames]);
 
   // A new record for a date that already exists → open the existing one
   useEffect(() => {
@@ -139,27 +171,74 @@ export default function DailySaleEditorPage() {
     return () => window.removeEventListener('beforeunload', h);
   }, [dirty]);
 
+  /**
+   * Edit a row. Total, Sold and Unsold stay consistent:
+   * Unsold = Total − Sold, or Sold = Total − Unsold when leftovers are counted.
+   */
   const edit = (key: string, patch: Partial<Line>) => {
     setDirty(true);
     setLines((ls) =>
       ls.map((l) => {
         if (l.key !== key) return l;
         const next = { ...l, ...patch };
+        if ('sold_quantity' in patch) {
+          next.unsold_quantity = next.total_quantity !== '' && next.sold_quantity !== '' ? diff(next.total_quantity, next.sold_quantity) : next.unsold_quantity;
+        } else if ('unsold_quantity' in patch) {
+          if (next.total_quantity !== '' && next.unsold_quantity !== '') next.sold_quantity = diff(next.total_quantity, next.unsold_quantity);
+        } else if ('total_quantity' in patch && next.total_quantity !== '') {
+          if (next.sold_quantity !== '') next.unsold_quantity = diff(next.total_quantity, next.sold_quantity);
+          else if (next.unsold_quantity !== '') next.sold_quantity = diff(next.total_quantity, next.unsold_quantity);
+        }
         // SHARE follows SOLD (workbook: =IF(F="","",F)) unless edited by hand
-        if ('sold_quantity' in patch && !next.shareTouched) next.share_quantity = next.sold_quantity;
+        if (!next.shareTouched) next.share_quantity = next.sold_quantity;
         return next;
       }),
     );
   };
-  const pick = (key: string, item: InventoryItem) =>
+  const pickItem = (key: string, item: InventoryItem) =>
     edit(key, {
       inventory_item_id: item.id,
       item_name: item.name,
-      unit_price: String(toNumber(item.selling_price)),
+      itemManual: false,
+      unit_price: num(item.selling_price),
       consignee: item.is_consigned ? item.consignee_name ?? '' : lines.find((l) => l.key === key)?.consignee || item.default_consignee || '',
+      consigneeManual: false,
       is_canteen_stock: !item.is_consigned,
-      cost_price: item.is_consigned && toNumber(item.unit_cost) > 0 ? String(toNumber(item.unit_cost)) : '',
+      cost_price: item.is_consigned && toNumber(item.unit_cost) > 0 ? num(item.unit_cost) : '',
     });
+
+  const addRow = () => {
+    setLines((ls) => [...ls, newLine()]);
+    setDirty(true);
+  };
+
+  /** Append lines from History, filling the trailing blank row first. */
+  const useHistory = (hist: HistoryLine[], { withQuantities }: { withQuantities: boolean }) => {
+    const already = new Set(lines.filter((l) => l.item_name.trim()).map((l) => `${l.item_name.trim().toLowerCase()}|${l.consignee.trim().toLowerCase()}`));
+    const fresh = hist.filter((h) => !already.has(`${h.item_name.trim().toLowerCase()}|${h.consignee.trim().toLowerCase()}`));
+    const skipped = hist.length - fresh.length;
+    const added: Line[] = fresh.map((h) => {
+      const inv = h.inventory_item_id ? invById.get(h.inventory_item_id) : undefined;
+      const linked = Boolean(inv?.is_active);
+      const total = withQuantities ? String(h.total_quantity) : '';
+      return {
+        ...newLine(),
+        inventory_item_id: linked ? inv!.id : null,
+        item_name: h.item_name,
+        itemManual: !linked,
+        consignee: h.consignee,
+        consigneeManual: Boolean(h.consignee) && !consigneeNames.has(h.consignee.trim().toLowerCase()),
+        unit_price: String(h.unit_price),
+        cost_price: h.is_canteen_stock || h.cost_price === null ? '' : String(h.cost_price),
+        is_canteen_stock: linked ? !inv!.is_consigned : false,
+        total_quantity: total,
+      };
+    });
+    setLines((ls) => [...ls.filter((l) => l.item_name.trim() || l.total_quantity || l.sold_quantity || l.unsold_quantity), ...added]);
+    setDirty(true);
+    setTab('sheet');
+    toast.success(`${added.length} item${added.length === 1 ? '' : 's'} added from history.${skipped ? ` ${skipped} already on the sheet.` : ''} Enter today's quantities.`);
+  };
 
   const numericLines = lines.map((l) => ({
     total_quantity: n(l.total_quantity),
@@ -183,6 +262,7 @@ export default function DailySaleEditorPage() {
   const deductDeficit = settings?.deduct_deficit_in_net !== false;
   const grossSales = Math.round((shareTotal + otherShares) * 100) / 100;
   const netSales = Math.round((grossSales - dayExpenses - (deductDeficit ? dayDeficit : 0)) * 100) / 100;
+  const meaningful = lines.filter((l) => l.item_name.trim() || l.total_quantity || l.sold_quantity || l.unsold_quantity);
   const byConsignee = useMemo(() => {
     const m = new Map<string, { consignee: string; items: number; sold: number; sales: number; share: number; remit: number }>();
     lines.forEach((l, i) => {
@@ -198,12 +278,12 @@ export default function DailySaleEditorPage() {
     });
     return [...m.values()].sort((a, b) => a.consignee.localeCompare(b.consignee));
   }, [lines]); // eslint-disable-line react-hooks/exhaustive-deps
-  const meaningful = lines.filter((l) => l.item_name.trim() || l.total_quantity || l.sold_quantity);
   const lineErrors = lines.map((l, i) => {
     if (!meaningful.includes(l)) return null;
     if (!l.item_name.trim()) return 'Item name is required.';
-    if (l.unit_price === '') return 'Price is required.';
+    if (l.unit_price === '') return 'Selling price is required.';
     if (!l.is_canteen_stock && l.cost_price !== '' && Number(l.cost_price) > n(l.unit_price)) return 'Cost price is higher than the selling price.';
+    if (l.total_quantity !== '' && l.unsold_quantity !== '' && Number(l.unsold_quantity) > Number(l.total_quantity)) return 'Unsold is more than the total quantity.';
     return calcLine(numericLines[i]).error;
   });
   const stockWarnings = lines.map((l) => {
@@ -213,10 +293,18 @@ export default function DailySaleEditorPage() {
     return n(l.sold_quantity) > toNumber(it.quantity_on_hand) ? `Only ${qty(it.quantity_on_hand)} ${it.unit} in stock` : null;
   });
   const hasErrors = lineErrors.some(Boolean) || (actualMoney !== '' && Number(actualMoney) < 0) || date > todayPH();
+  // started rows with inputs still empty (amber cells)
+  const emptyInputs = meaningful.reduce(
+    (a, l) =>
+      a +
+      [l.item_name.trim(), l.unit_price, l.total_quantity, l.sold_quantity, l.unsold_quantity, l.is_canteen_stock ? 'x' : l.cost_price].filter((v) => v === '').length,
+    0,
+  );
+  const missingCost = meaningful.filter((l) => !l.is_canteen_stock && l.cost_price === '').length;
 
   async function save(): Promise<string | null> {
     if (hasErrors) {
-      toast.error('Fix the highlighted rows before saving.');
+      toast.error('Fix the rows marked in red before saving.');
       return null;
     }
     setBusy('save');
@@ -231,7 +319,7 @@ export default function DailySaleEditorPage() {
         share_quantity: n(l.share_quantity),
         cost_price: l.is_canteen_stock || l.cost_price === '' ? null : Number(l.cost_price),
       }));
-      const res = await rpc<{ id: string; version: number }>('save_daily_sale', {
+      const res = await rpc<{ id: string; version: number; new_products?: number; new_consignees?: number }>('save_daily_sale', {
         p_id: id ?? null,
         p_sale_date: date,
         p_actual_money: actualMoney === '' ? null : Number(actualMoney),
@@ -241,8 +329,12 @@ export default function DailySaleEditorPage() {
       });
       setDirty(false);
       loadedVersion.current = res.version;
-      await invalidate([keys.dailySales, keys.alerts, keys.ledger]);
-      toast.success('Draft saved.');
+      await invalidate([keys.dailySales, keys.alerts, keys.ledger, keys.inventory, keys.consignees]);
+      const added = [
+        res.new_products ? `${res.new_products} new product${res.new_products === 1 ? '' : 's'}` : '',
+        res.new_consignees ? `${res.new_consignees} new consignee${res.new_consignees === 1 ? '' : 's'}` : '',
+      ].filter(Boolean);
+      toast.success(added.length ? `Draft saved. ${added.join(' and ')} added to the lists.` : 'Draft saved.');
       if (isNew) navigate(`/daily-sales/${res.id}`, { replace: true });
       return res.id;
     } catch (e) {
@@ -263,7 +355,7 @@ export default function DailySaleEditorPage() {
       setException(null);
       await invalidate(FINANCIAL_KEYS);
       await qc.invalidateQueries({ queryKey: keys.dailySales });
-      toast.success('Daily sales finalized. Inventory has been updated.');
+      toast.success('Daily sales finalized.');
       if (isNew) navigate(`/daily-sales/${saleId}`, { replace: true });
     } catch (e) {
       const msg = (e as Error).message;
@@ -305,33 +397,47 @@ export default function DailySaleEditorPage() {
     }
   }
 
-  async function copyPrevious() {
-    try {
-      const prev = unwrap(
-        await supabase.from('daily_sales').select('id, sale_date').lt('sale_date', date).order('sale_date', { ascending: false }).limit(1).maybeSingle(),
-      ) as { id: string; sale_date: string } | null;
-      if (!prev) return toast.info('There is no earlier record to copy from.');
-      const items = unwrap(await supabase.from('daily_sale_items').select('*').eq('daily_sale_id', prev.id).order('line_no')) as DailySaleItem[];
-      setLines(
-        items.map((i) => {
-          const inv = i.inventory_item_id ? invById.get(i.inventory_item_id) : undefined;
-          return {
-            ...newLine(),
-            inventory_item_id: inv?.is_active ? inv.id : null,
-            item_name: i.item_name_snapshot,
-            consignee: i.consignee ?? '',
-            unit_price: String(inv?.is_active ? toNumber(inv.selling_price) : toNumber(i.unit_price)),
-            is_canteen_stock: Boolean(inv?.is_active && !inv.is_consigned),
-            cost_price: inv?.is_active ? (inv.is_consigned && toNumber(inv.unit_cost) > 0 ? String(toNumber(inv.unit_cost)) : '') : i.cost_price === null ? '' : String(toNumber(i.cost_price)),
-          };
-        }),
-      );
-      setDirty(true);
-      toast.success(`Copied ${items.length} items from ${formatDate(prev.sale_date, 'long')}. Enter today's quantities.`);
-    } catch (e) {
-      toast.error((e as Error).message);
-    }
-  }
+  // Typed (not yet saved) products/consignees appear in the lists right away;
+  // the database adds them to Inventory / Consignees when the sheet is saved.
+  const pendingItems = useMemo(() => {
+    const seen = new Set(inventory.map((i) => `${i.name.trim().toLowerCase()}|${(i.consignee_name ?? '').trim().toLowerCase()}`));
+    const out = new Map<string, Line>();
+    lines.forEach((l) => {
+      if (l.inventory_item_id || !l.item_name.trim()) return;
+      const k = `${l.item_name.trim().toLowerCase()}|${l.consignee.trim().toLowerCase()}`;
+      if (!seen.has(k) && !out.has(k)) out.set(k, l);
+    });
+    return out;
+  }, [lines, inventory]);
+  const itemOptions: ComboOption[] = useMemo(
+    () => [
+      ...[...pendingItems.entries()].map(([k, l]) => ({
+        id: `new:${k}`,
+        label: l.item_name.trim(),
+        sub: `New${l.consignee.trim() ? ` · ${l.consignee.trim()}` : ''} · saved to the list when you save`,
+        right: l.unit_price ? peso(l.unit_price) : undefined,
+        keywords: l.consignee,
+      })),
+      ...inventory
+        .filter((i) => i.is_active)
+        .map((i) => ({
+          id: i.id,
+          label: i.name,
+          sub: `${i.item_code} · ${i.is_consigned ? `Consigned · ${i.consignee_name ?? ''}` : `${qty(i.quantity_on_hand)} ${i.unit} on hand`}`,
+          right: peso(i.selling_price),
+          keywords: `${i.item_code} ${i.consignee_name ?? ''}`,
+        })),
+    ],
+    [inventory, pendingItems],
+  );
+  const consigneeOptions: ComboOption[] = useMemo(() => {
+    const listed = consignees.filter((c) => c.is_active).map((c) => ({ id: c.id, label: c.name, sub: c.contact_number ?? undefined }));
+    const known = new Set(consignees.map((c) => c.name.trim().toLowerCase()));
+    const typed = [...new Set(lines.filter((l) => !l.is_canteen_stock && l.consignee.trim()).map((l) => l.consignee.trim()))]
+      .filter((name) => !known.has(name.toLowerCase()))
+      .map((name) => ({ id: `new:${name.toLowerCase()}`, label: name, sub: 'New · saved to the list when you save' }));
+    return [...typed, ...listed];
+  }, [consignees, lines]);
 
   const syName = schoolYears.find((y) => date >= y.start_date && date <= y.end_date)?.name;
   const report = (): OfficialReport => ({
@@ -369,24 +475,26 @@ export default function DailySaleEditorPage() {
           unsold: c.unsoldQuantity,
           amount: c.salesAmount,
           canteen_share: money[i].canteenShare,
-          remit: money[i].remit,
+          remit: l.is_canteen_stock ? null : money[i].remit,
         };
       }),
     totals: { item: 'TOTAL', total: totals.totalQuantity, sold: totals.unitsSold, unsold: totals.unsoldUnits, amount: totals.salesAmount, canteen_share: shareTotal, remit: remitTotal },
     sections: byConsignee.length
-      ? [{
-          title: 'Remittance by consignee',
-          columns: [
-            { key: 'consignee', header: 'Consignee' },
-            { key: 'items', header: 'Items', format: 'qty' },
-            { key: 'sold', header: 'Pieces Sold', format: 'qty' },
-            { key: 'sales', header: 'Sales', format: 'peso' },
-            { key: 'share', header: 'Canteen Share', format: 'peso' },
-            { key: 'remit', header: 'Amount to Remit', format: 'peso' },
-          ],
-          rows: byConsignee.map((g) => ({ ...g })),
-          totals: { consignee: 'TOTAL', sales: byConsignee.reduce((a, g) => a + g.sales, 0), share: byConsignee.reduce((a, g) => a + g.share, 0), remit: remitTotal },
-        }]
+      ? [
+          {
+            title: 'Remittance by consignee',
+            columns: [
+              { key: 'consignee', header: 'Consignee' },
+              { key: 'items', header: 'Items', format: 'qty' },
+              { key: 'sold', header: 'Pieces Sold', format: 'qty' },
+              { key: 'sales', header: 'Sales', format: 'peso' },
+              { key: 'share', header: 'Canteen Share', format: 'peso' },
+              { key: 'remit', header: 'Amount to Remit', format: 'peso' },
+            ],
+            rows: byConsignee.map((g) => ({ ...g })),
+            totals: { consignee: 'TOTAL', sales: byConsignee.reduce((a, g) => a + g.sales, 0), share: byConsignee.reduce((a, g) => a + g.share, 0), remit: remitTotal },
+          },
+        ]
       : undefined,
     summary: [
       { label: 'Daily canteen shares', value: peso(shareTotal) },
@@ -405,8 +513,13 @@ export default function DailySaleEditorPage() {
   if (!isNew && error) return <ErrorState error={error} onRetry={() => refetch()} />;
   if (!isNew && (isLoading || !data)) return <Skeleton className="h-[480px]" />;
 
-  const numCell =
-    'h-9 w-full min-w-[72px] rounded-lg border border-transparent bg-transparent px-2 text-right text-sm tabular hover:border-surface-border focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:hover:border-transparent';
+  // spreadsheet input box; amber while a started row still needs the value
+  const inputCell = (needs: boolean) =>
+    cn(
+      'h-9 w-full min-w-[78px] rounded-lg border border-surface-border bg-white px-2 text-right text-sm tabular shadow-[inset_0_1px_1px_rgba(16,40,24,0.04)] focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:border-transparent disabled:bg-transparent disabled:shadow-none',
+      needs && needsInputClass,
+    );
+  const calcCell = 'bg-surface-page/70 px-3 py-2.5 text-right tabular';
 
   return (
     <>
@@ -455,7 +568,7 @@ export default function DailySaleEditorPage() {
         {locked && (
           <Callout tone="info" title="This record is finalized and locked">
             Finalized {formatDateTime(sale!.finalized_at)} by {sale!.finalized_by_name ?? '—'}.
-            {sale!.inventory_posted ? ' Sold quantities were deducted from inventory.' : ''} Corrections require an authorized user to reopen the record; every change is kept in the audit log.
+            {sale!.inventory_posted ? ' Sold quantities of canteen stock were deducted from inventory.' : ''} Corrections require an authorized user to reopen the record; every change is kept in the audit log.
           </Callout>
         )}
 
@@ -500,11 +613,6 @@ export default function DailySaleEditorPage() {
             </div>
           </div>
         </div>
-        {!locked && (
-          <p className="-mt-3 text-xs text-ink-muted">
-            Figures update as you type. Other shares, expenses and deficits come from Expenses &amp; Other Sales for this date{fin ? '' : ' (none recorded yet)'}.
-          </p>
-        )}
 
         {/* Record information */}
         <Card>
@@ -531,209 +639,300 @@ export default function DailySaleEditorPage() {
           </CardBody>
         </Card>
 
-        {/* Line items */}
-        <Card>
-          <CardHeader
-            title="Daily sales sheet"
-            description={`Sales = Sold × Selling price · Canteen share = (Selling − Cost) × Sold, or ₱${shareRate.toFixed(2)} × Sold when no cost price · Remit = Sales − Canteen share`}
-            actions={
-              editable && (
-                <>
-                  {meaningful.length === 0 && (
-                    <Button variant="secondary" size="sm" onClick={() => void copyPrevious()}>
-                      <CopyPlus /> Copy items from last record
-                    </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      setLines((ls) => [...ls, newLine()]);
-                      setDirty(true);
-                    }}
-                  >
-                    <Plus /> Add item
-                  </Button>
-                </>
-              )
-            }
-          />
-          <div className="scrollbar-thin overflow-x-auto">
-            <table className="w-full min-w-[1240px] border-collapse text-sm">
-              <thead className="bg-surface-page/80">
-                <tr className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-muted">
-                  <th rowSpan={2} className="w-10 border-b border-surface-border px-3 py-2 text-left">No.</th>
-                  <th rowSpan={2} className="border-b border-surface-border px-2 py-2 text-left">Item</th>
-                  <th rowSpan={2} className="border-b border-surface-border px-2 py-2 text-left">Consignee</th>
-                  <th colSpan={2} className="border-b border-l border-surface-border px-2 pt-2 text-center">Price per piece</th>
-                  <th colSpan={3} className="border-b border-l border-surface-border px-2 pt-2 text-center">Quantity</th>
-                  <th rowSpan={2} className="border-b border-l border-surface-border px-2 py-2 text-right">Sales</th>
-                  <th rowSpan={2} className="border-b border-surface-border bg-brand-50/60 px-2 py-2 text-right text-brand-700">Canteen share</th>
-                  <th rowSpan={2} className="border-b border-surface-border bg-gold-50/70 px-2 py-2 text-right text-gold-600">Remit to consignee</th>
-                  <th rowSpan={2} className="border-b border-l border-surface-border px-2 py-2 text-right" title="Workbook SHARE column (quantity)">Share qty</th>
-                  <th rowSpan={2} className="w-20 border-b border-surface-border" />
-                </tr>
-                <tr className="text-[10px] font-semibold uppercase tracking-wider text-ink-soft">
-                  <th className="border-b border-l border-surface-border px-2 pb-1.5 text-right">Cost</th>
-                  <th className="border-b border-surface-border px-2 pb-1.5 text-right">Selling</th>
-                  <th className="border-b border-l border-surface-border px-2 pb-1.5 text-right">Total</th>
-                  <th className="border-b border-surface-border px-2 pb-1.5 text-right">Sold</th>
-                  <th className="border-b border-surface-border px-2 pb-1.5 text-right">Unsold</th>
-                </tr>
-              </thead>
-              <tbody>
-                {lines.map((l, i) => {
-                  const c = calcLine(numericLines[i]);
-                  const err = lineErrors[i];
-                  const warn = stockWarnings[i];
-                  // a started row must have item, selling price, total and sold
-                  const started = meaningful.includes(l) && editable;
-                  const need = (v: string) => started && v.trim() === '';
-                  return (
-                    <tr key={l.key} className={cn('border-b border-surface-border align-top', err && 'bg-danger-50/50')}>
-                      <td className="px-3 py-2.5 text-xs text-ink-muted tabular">{i + 1}</td>
-                      <td className="px-1 py-1">
-                        <ItemPicker
-                          value={l.item_name}
-                          linkedId={l.inventory_item_id}
-                          items={inventory}
-                          disabled={!editable}
-                          invalid={false}
-                          needsInput={need(l.item_name)}
-                          onText={(t) => edit(l.key, { item_name: t, inventory_item_id: null, is_canteen_stock: false })}
-                          onPick={(it) => pick(l.key, it)}
-                          onCreate={can('inventory.manage') ? (name) => setCreateFor({ key: l.key, name }) : undefined}
-                        />
-                        {(err || warn) && (
-                          <div className={cn('px-2 pb-1 text-[11px]', err ? 'text-danger-600' : 'text-warn-700')}>{err ?? warn}</div>
-                        )}
-                      </td>
-                      <td className="px-1 py-1">
-                        {l.is_canteen_stock ? (
-                          <div className="px-2 py-2 text-xs font-medium text-brand-700">Canteen stock</div>
-                        ) : (
-                        <input
-                          value={l.consignee}
-                          disabled={!editable}
-                          onChange={(e) => edit(l.key, { consignee: e.target.value })}
-                          className="h-9 w-full min-w-[120px] rounded-lg border border-transparent bg-transparent px-2 text-sm hover:border-surface-border focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:hover:border-transparent"
-                          placeholder="—"
-                          list="consignee-options"
-                          aria-label={`Consignee row ${i + 1}`}
-                        />
-                        )}
-                      </td>
-                      <td className="border-l border-surface-border px-1 py-1">
-                        {l.is_canteen_stock ? (
-                          <div className="px-2 py-2 text-right text-ink-soft">—</div>
-                        ) : (
-                          <input type="number" min={0} step="0.01" value={l.cost_price} placeholder="—" disabled={!editable} title={`Blank = ₱${shareRate.toFixed(2)} per piece to the canteen`} onChange={(e) => edit(l.key, { cost_price: e.target.value })} className={numCell} aria-label={`Cost price row ${i + 1}`} />
-                        )}
-                      </td>
-                      <td className="px-1 py-1">
-                        <input type="number" min={0} step="0.01" value={l.unit_price} disabled={!editable} onChange={(e) => edit(l.key, { unit_price: e.target.value })} className={cn(numCell, need(l.unit_price) && needsInputClass)} aria-required={started || undefined} title={need(l.unit_price) ? 'Required — enter the selling price' : undefined} aria-label={`Selling price row ${i + 1}`} />
-                      </td>
-                      <td className="border-l border-surface-border px-1 py-1">
-                        <input type="number" min={0} step="any" value={l.total_quantity} disabled={!editable} onChange={(e) => edit(l.key, { total_quantity: e.target.value })} className={cn(numCell, need(l.total_quantity) && needsInputClass)} aria-required={started || undefined} title={need(l.total_quantity) ? 'Required — enter the quantity brought in' : undefined} aria-label={`Total quantity row ${i + 1}`} />
-                      </td>
-                      <td className="px-1 py-1">
-                        <input
-                          type="number"
-                          min={0}
-                          step="any"
-                          value={l.sold_quantity}
-                          disabled={!editable}
-                          onChange={(e) => edit(l.key, { sold_quantity: e.target.value })}
-                          className={cn(numCell, 'font-semibold', c.error && 'text-danger-600', need(l.sold_quantity) && needsInputClass)}
-                          aria-required={started || undefined}
-                          title={need(l.sold_quantity) ? 'Required — enter the quantity sold (0 if none)' : undefined}
-                          aria-label={`Sold quantity row ${i + 1}`}
-                        />
-                      </td>
-                      <td className={cn('px-3 py-2.5 text-right tabular', c.unsoldQuantity < 0 && 'text-danger-600')}>{qty(c.unsoldQuantity)}</td>
-                      <td className="border-l border-surface-border px-3 py-2.5 text-right font-medium tabular">{peso(c.salesAmount)}</td>
-                      <td className="bg-brand-50/40 px-3 py-2.5 text-right font-semibold tabular text-brand-700">{peso(money[i].canteenShare)}</td>
-                      <td className="bg-gold-50/50 px-3 py-2.5 text-right font-semibold tabular text-gold-600">{l.is_canteen_stock ? <span className="font-normal text-ink-soft">—</span> : peso(money[i].remit)}</td>
-                      <td className="border-l border-surface-border px-1 py-1">
-                        <input
-                          type="number"
-                          min={0}
-                          step="any"
-                          value={l.share_quantity}
-                          disabled={!editable}
-                          title="Defaults to the sold quantity, as in the workbook"
-                          onChange={(e) => edit(l.key, { share_quantity: e.target.value, shareTouched: true })}
-                          className={cn(numCell, l.shareTouched && 'text-gold-600')}
-                          aria-label={`Share row ${i + 1}`}
-                        />
-                      </td>
-                      <td className="px-1 py-1.5">
-                        {editable && (
-                          <div className="flex justify-end">
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              title="Duplicate row"
-                              aria-label={`Duplicate row ${i + 1}`}
-                              onClick={() => {
-                                setLines((ls) => [...ls.slice(0, i + 1), { ...l, key: uuid() }, ...ls.slice(i + 1)]);
-                                setDirty(true);
-                              }}
-                            >
-                              <Copy />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              title="Remove row"
-                              aria-label={`Remove row ${i + 1}`}
-                              onClick={() => {
-                                setLines((ls) => (ls.length === 1 ? [newLine()] : ls.filter((x) => x.key !== l.key)));
-                                setDirty(true);
-                              }}
-                            >
-                              <Trash2 />
-                            </Button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot>
-                <tr className="bg-surface-page font-semibold">
-                  <td colSpan={5} className="px-3 py-3 text-right text-xs uppercase tracking-wider text-ink-muted">
-                    Totals
-                  </td>
-                  <td className="border-l border-surface-border px-3 py-3 text-right tabular">{qty(totals.totalQuantity)}</td>
-                  <td className="px-3 py-3 text-right tabular">{qty(totals.unitsSold)}</td>
-                  <td className="px-3 py-3 text-right tabular">{qty(totals.unsoldUnits)}</td>
-                  <td className="border-l border-surface-border px-3 py-3 text-right tabular">{peso(totals.salesAmount)}</td>
-                  <td className="bg-brand-50/60 px-3 py-3 text-right tabular text-brand-700">{peso(shareTotal)}</td>
-                  <td className="bg-gold-50/70 px-3 py-3 text-right tabular text-gold-600">{peso(remitTotal)}</td>
-                  <td className="border-l border-surface-border px-3 py-3 text-right tabular">{qty(totals.shareUnits)}</td>
-                  <td />
-                </tr>
-              </tfoot>
-            </table>
+        {/* Sheet / History */}
+        <Tabs value={tab} onValueChange={(v) => setTab(v as 'sheet' | 'history')}>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <TabsList>
+              <TabsTrigger value="sheet" icon={<Sheet />}>
+                Today's sheet
+              </TabsTrigger>
+              <TabsTrigger value="history" icon={<History />}>
+                History
+              </TabsTrigger>
+            </TabsList>
+            {tab === 'sheet' && editable && (
+              <div className="flex flex-wrap items-center gap-3 text-xs text-ink-muted">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="inline-block h-3.5 w-5 rounded border border-surface-border bg-white" /> enter data
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="inline-block h-3.5 w-5 rounded border border-gold-500 bg-gold-50" /> still empty
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="inline-block h-3.5 w-5 rounded bg-surface-sunken" /> calculated
+                </span>
+              </div>
+            )}
           </div>
-          {editable && (
-            <div className="border-t border-surface-border px-5 py-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setLines((ls) => [...ls, newLine()]);
-                  setDirty(true);
-                }}
-              >
-                <Plus /> Add row
-              </Button>
-            </div>
-          )}
-        </Card>
 
-        {/* Summary */}
+          <TabsContent value="history">
+            <Card>
+              <CardHeader
+                title="Reuse previous entries"
+                description="Pick a previous day and reuse its items, consignees, cost and selling prices — or choose from every item used recently. Quantities are left for you to enter unless you tick “Also copy total quantity”."
+                icon={<History />}
+              />
+              {editable ? (
+                <HistoryPanel beforeDate={date} onUse={useHistory} />
+              ) : (
+                <CardBody className="text-sm text-ink-muted">This record is locked. Reopen it to add items.</CardBody>
+              )}
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="sheet">
+            <Card>
+              <CardHeader
+                title="Daily sales sheet"
+                description={`Sales = Sold × Selling price · Unsold = Total − Sold (or enter Unsold and Sold is worked out) · Canteen share = (Selling − Cost) × Sold, or ₱${shareRate.toFixed(2)} × Sold without a cost price · Remit = Sales − Canteen share`}
+                actions={
+                  editable && (
+                    <>
+                      <Button variant="secondary" size="sm" onClick={() => setTab('history')}>
+                        <History /> From history
+                      </Button>
+                      <Button size="sm" onClick={addRow}>
+                        <Plus /> Add item
+                      </Button>
+                    </>
+                  )
+                }
+              />
+              {editable && emptyInputs > 0 && (
+                <div className="border-b border-surface-border bg-gold-50/60 px-5 py-2 text-xs text-gold-600">
+                  {emptyInputs} highlighted cell{emptyInputs === 1 ? '' : 's'} still need{emptyInputs === 1 ? 's' : ''} a value.
+                </div>
+              )}
+              <div className="scrollbar-thin overflow-x-auto">
+                <table className="w-full min-w-[1320px] border-collapse text-sm">
+                  <thead className="bg-surface-page/80">
+                    <tr className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-muted">
+                      <th rowSpan={2} className="w-10 border-b border-surface-border px-3 py-2 text-left">No.</th>
+                      <th rowSpan={2} className="border-b border-surface-border px-2 py-2 text-left">Product</th>
+                      <th rowSpan={2} className="border-b border-surface-border px-2 py-2 text-left">Consignee</th>
+                      <th colSpan={2} className="border-b border-l border-surface-border px-2 pt-2 text-center">Price per piece</th>
+                      <th colSpan={3} className="border-b border-l border-surface-border px-2 pt-2 text-center">Quantity</th>
+                      <th rowSpan={2} className="border-b border-l border-surface-border px-2 py-2 text-right">Sales</th>
+                      <th rowSpan={2} className="border-b border-surface-border bg-brand-50/60 px-2 py-2 text-right text-brand-700">Canteen share</th>
+                      <th rowSpan={2} className="border-b border-surface-border bg-gold-50/70 px-2 py-2 text-right text-gold-600">Remit to consignee</th>
+                      <th rowSpan={2} className="border-b border-l border-surface-border px-2 py-2 text-right" title="Workbook SHARE column (quantity)">
+                        Share qty
+                      </th>
+                      <th rowSpan={2} className="w-20 border-b border-surface-border" />
+                    </tr>
+                    <tr className="text-[10px] font-semibold uppercase tracking-wider text-ink-soft">
+                      <th className="border-b border-l border-surface-border px-2 pb-1.5 text-right">Cost</th>
+                      <th className="border-b border-surface-border px-2 pb-1.5 text-right">Selling</th>
+                      <th className="border-b border-l border-surface-border px-2 pb-1.5 text-right">Total</th>
+                      <th className="border-b border-surface-border px-2 pb-1.5 text-right">Sold</th>
+                      <th className="border-b border-surface-border px-2 pb-1.5 text-right">Unsold</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lines.map((l, i) => {
+                      const c = calcLine(numericLines[i]);
+                      const err = lineErrors[i];
+                      const warn = stockWarnings[i];
+                      // a started row needs product, cost, selling, total, sold and unsold
+                      const started = meaningful.includes(l) && editable;
+                      const need = (v: string) => started && v.trim() === '';
+                      return (
+                        <tr key={l.key} className={cn('border-b border-surface-border align-top', err && 'bg-danger-50/50')}>
+                          <td className="px-3 py-2.5 text-xs tabular text-ink-muted">{i + 1}</td>
+                          <td className="px-1 py-1">
+                            <SheetCombobox
+                              ariaLabel={`Product row ${i + 1}`}
+                              value={l.item_name}
+                              options={itemOptions}
+                              manual={l.itemManual}
+                              linked={Boolean(l.inventory_item_id)}
+                              disabled={!editable}
+                              needsInput={need(l.item_name)}
+                              placeholder="Choose or type a product"
+                              manualLabel="Type product manually"
+                              emptyText="No product with that name — use “Type product manually”."
+                              onText={(t) => edit(l.key, { item_name: t, inventory_item_id: null, is_canteen_stock: false })}
+                              onPick={(o) => {
+                                const it = invById.get(o.id);
+                                if (it) return pickItem(l.key, it);
+                                const src = pendingItems.get(o.id.slice(4));
+                                if (src)
+                                  edit(l.key, {
+                                    item_name: src.item_name.trim(),
+                                    itemManual: true,
+                                    inventory_item_id: null,
+                                    is_canteen_stock: false,
+                                    consignee: src.consignee,
+                                    consigneeManual: src.consigneeManual,
+                                    unit_price: src.unit_price,
+                                    cost_price: src.cost_price,
+                                  });
+                              }}
+                              onManualChange={(m) => edit(l.key, m ? { itemManual: true, inventory_item_id: null, is_canteen_stock: false } : { itemManual: false })}
+                              onCreate={can('inventory.manage') ? (name) => setCreateFor({ key: l.key, name }) : undefined}
+                              createLabel={(t) => `Open the full product form for “${t}”`}
+                            />
+                            {(err || warn) && <div className={cn('px-2 pb-1 pt-0.5 text-[11px]', err ? 'text-danger-600' : 'text-warn-700')}>{err ?? warn}</div>}
+                          </td>
+                          <td className="px-1 py-1">
+                            {l.is_canteen_stock ? (
+                              <div className="px-2 py-2 text-xs font-medium text-brand-700">Canteen stock</div>
+                            ) : (
+                              <SheetCombobox
+                                ariaLabel={`Consignee row ${i + 1}`}
+                                value={l.consignee}
+                                options={consigneeOptions}
+                                manual={l.consigneeManual}
+                                disabled={!editable}
+                                placeholder="Choose or type"
+                                manualLabel="Type consignee manually"
+                                emptyText="Not in the consignee list — use “Type consignee manually”."
+                                onText={(t) => edit(l.key, { consignee: t })}
+                                onPick={(o) => edit(l.key, { consignee: o.label, consigneeManual: false })}
+                                onManualChange={(m) => edit(l.key, { consigneeManual: m })}
+                                needsInput={started && !l.inventory_item_id && !l.consignee.trim()}
+                              />
+                            )}
+                            {started && !l.inventory_item_id && !l.is_canteen_stock && !l.consignee.trim() && (
+                              <div className="px-2 pt-0.5 text-[11px] text-gold-600">Needed to save this new product to the list</div>
+                            )}
+                          </td>
+                          <td className="border-l border-surface-border px-1 py-1">
+                            {l.is_canteen_stock ? (
+                              <div className="px-2 py-2 text-right text-ink-soft" title="Canteen stock: no cost to remit">
+                                —
+                              </div>
+                            ) : (
+                              <input
+                                type="number"
+                                min={0}
+                                step="0.01"
+                                value={l.cost_price}
+                                disabled={!editable}
+                                onChange={(e) => edit(l.key, { cost_price: e.target.value })}
+                                className={inputCell(need(l.cost_price))}
+                                aria-required={started || undefined}
+                                title={need(l.cost_price) ? `Enter the cost price (what the consignee gets per piece). If left blank, the canteen gets ₱${shareRate.toFixed(2)} per piece.` : undefined}
+                                aria-label={`Cost price row ${i + 1}`}
+                              />
+                            )}
+                          </td>
+                          <td className="px-1 py-1">
+                            <input type="number" min={0} step="0.01" value={l.unit_price} disabled={!editable} onChange={(e) => edit(l.key, { unit_price: e.target.value })} className={inputCell(need(l.unit_price))} aria-required={started || undefined} title={need(l.unit_price) ? 'Required — enter the selling price' : undefined} aria-label={`Selling price row ${i + 1}`} />
+                          </td>
+                          <td className="border-l border-surface-border px-1 py-1">
+                            <input type="number" min={0} step="any" value={l.total_quantity} disabled={!editable} onChange={(e) => edit(l.key, { total_quantity: e.target.value })} className={inputCell(need(l.total_quantity))} aria-required={started || undefined} title={need(l.total_quantity) ? 'Required — enter the quantity brought in' : undefined} aria-label={`Total quantity row ${i + 1}`} />
+                          </td>
+                          <td className="px-1 py-1">
+                            <input
+                              type="number"
+                              min={0}
+                              step="any"
+                              value={l.sold_quantity}
+                              disabled={!editable}
+                              onChange={(e) => edit(l.key, { sold_quantity: e.target.value })}
+                              className={cn(inputCell(need(l.sold_quantity)), 'font-semibold', c.error && 'text-danger-600')}
+                              aria-required={started || undefined}
+                              title={need(l.sold_quantity) ? 'Enter the quantity sold — or enter Unsold and this is worked out' : undefined}
+                              aria-label={`Sold quantity row ${i + 1}`}
+                            />
+                          </td>
+                          <td className="px-1 py-1">
+                            <input
+                              type="number"
+                              min={0}
+                              step="any"
+                              value={l.unsold_quantity}
+                              disabled={!editable}
+                              onChange={(e) => edit(l.key, { unsold_quantity: e.target.value })}
+                              className={cn(inputCell(need(l.unsold_quantity)), c.unsoldQuantity < 0 && 'text-danger-600')}
+                              aria-required={started || undefined}
+                              title={need(l.unsold_quantity) ? 'Enter the leftover quantity — or enter Sold and this is worked out' : undefined}
+                              aria-label={`Unsold quantity row ${i + 1}`}
+                            />
+                          </td>
+                          <td className={cn(calcCell, 'border-l border-surface-border font-medium')}>{peso(c.salesAmount)}</td>
+                          <td className="bg-brand-50/40 px-3 py-2.5 text-right font-semibold tabular text-brand-700">{peso(money[i].canteenShare)}</td>
+                          <td className="bg-gold-50/50 px-3 py-2.5 text-right font-semibold tabular text-gold-600">{l.is_canteen_stock ? <span className="font-normal text-ink-soft">—</span> : peso(money[i].remit)}</td>
+                          <td className="border-l border-surface-border px-1 py-1">
+                            <input
+                              type="number"
+                              min={0}
+                              step="any"
+                              value={l.share_quantity}
+                              disabled={!editable}
+                              title="Defaults to the sold quantity, as in the workbook"
+                              onChange={(e) => edit(l.key, { share_quantity: e.target.value, shareTouched: true })}
+                              className={cn(inputCell(false), 'min-w-[64px] text-ink-muted', l.shareTouched && 'text-gold-600')}
+                              aria-label={`Share quantity row ${i + 1}`}
+                            />
+                          </td>
+                          <td className="px-1 py-1.5">
+                            {editable && (
+                              <div className="flex justify-end">
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  title="Duplicate row"
+                                  aria-label={`Duplicate row ${i + 1}`}
+                                  onClick={() => {
+                                    setLines((ls) => [...ls.slice(0, i + 1), { ...l, key: uuid() }, ...ls.slice(i + 1)]);
+                                    setDirty(true);
+                                  }}
+                                >
+                                  <Copy />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  title="Remove row"
+                                  aria-label={`Remove row ${i + 1}`}
+                                  onClick={() => {
+                                    setLines((ls) => (ls.length === 1 ? [newLine()] : ls.filter((x) => x.key !== l.key)));
+                                    setDirty(true);
+                                  }}
+                                >
+                                  <Trash2 />
+                                </Button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-surface-page font-semibold">
+                      <td colSpan={5} className="px-3 py-3 text-right text-xs uppercase tracking-wider text-ink-muted">
+                        Totals
+                      </td>
+                      <td className="border-l border-surface-border px-3 py-3 text-right tabular">{qty(totals.totalQuantity)}</td>
+                      <td className="px-3 py-3 text-right tabular">{qty(totals.unitsSold)}</td>
+                      <td className="px-3 py-3 text-right tabular">{qty(totals.unsoldUnits)}</td>
+                      <td className="border-l border-surface-border px-3 py-3 text-right tabular">{peso(totals.salesAmount)}</td>
+                      <td className="bg-brand-50/60 px-3 py-3 text-right tabular text-brand-700">{peso(shareTotal)}</td>
+                      <td className="bg-gold-50/70 px-3 py-3 text-right tabular text-gold-600">{peso(remitTotal)}</td>
+                      <td className="border-l border-surface-border px-3 py-3 text-right tabular">{qty(totals.shareUnits)}</td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+              {editable && (
+                <div className="flex flex-wrap items-center gap-2 border-t border-surface-border px-5 py-3">
+                  <Button variant="ghost" size="sm" onClick={addRow}>
+                    <Plus /> Add row
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => setTab('history')}>
+                    <History /> Add from history
+                  </Button>
+                </div>
+              )}
+            </Card>
+          </TabsContent>
+        </Tabs>
+
+        {/* Remittance + remarks */}
         <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
           <Card>
             <CardHeader title="Remittance by consignee" description="Money to hand over to each consignee for this day" icon={<HandCoins />} />
@@ -766,7 +965,9 @@ export default function DailySaleEditorPage() {
                   </tbody>
                   <tfoot>
                     <tr className="border-t-2 border-surface-border bg-surface-page font-semibold">
-                      <td className="px-4 py-2.5" colSpan={3}>Total</td>
+                      <td className="px-4 py-2.5" colSpan={3}>
+                        Total
+                      </td>
                       <td className="px-4 py-2.5 text-right tabular">{peso(byConsignee.reduce((a, g) => a + g.sales, 0))}</td>
                       <td className="px-4 py-2.5 text-right tabular text-brand-700">{peso(byConsignee.reduce((a, g) => a + g.share, 0))}</td>
                       <td className="px-4 py-2.5 text-right tabular text-gold-600">{peso(remitTotal)}</td>
@@ -800,9 +1001,14 @@ export default function DailySaleEditorPage() {
         description={
           <div className="space-y-2">
             <p>
-              {meaningful.length} items · {qty(totals.unitsSold)} units sold · {peso(totals.salesAmount)}.
+              {meaningful.length} items · {qty(totals.unitsSold)} pcs sold · {peso(totals.salesAmount)} collected · {peso(remitTotal)} to remit.
             </p>
-            <p>Sold quantities of inventory-linked items will be deducted from stock, and the record will be locked. Corrections afterwards require an authorized reopen.</p>
+            {missingCost > 0 && (
+              <p className="text-gold-600">
+                {missingCost} consigned item{missingCost === 1 ? ' has' : 's have'} no cost price — the canteen share for {missingCost === 1 ? 'it' : 'them'} will be ₱{shareRate.toFixed(2)} per piece.
+              </p>
+            )}
+            <p>Canteen-stock quantities sold will be deducted from inventory and the record will be locked. Corrections afterwards require an authorized reopen.</p>
           </div>
         }
         confirmLabel="Finalize"
@@ -880,14 +1086,9 @@ export default function DailySaleEditorPage() {
           const key = createFor?.key;
           await qc.invalidateQueries({ queryKey: keys.inventory });
           const { data: it } = await supabase.from('v_inventory_items').select('*').eq('id', newId).single();
-          if (it && key) pick(key, it as InventoryItem);
+          if (it && key) pickItem(key, it as InventoryItem);
         }}
       />
-      <datalist id="consignee-options">
-        {consignees.filter((c) => c.is_active).map((c) => (
-          <option key={c.id} value={c.name} />
-        ))}
-      </datalist>
       {busy === 'save' && <span className="sr-only">Saving…</span>}
     </>
   );

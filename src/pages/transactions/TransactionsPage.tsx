@@ -71,8 +71,6 @@ const KIND_GROUPS: { label: string; kinds: string[] }[] = [
   { label: 'Expenses', kinds: ['expense'] },
   { label: 'Other sales', kinds: ['sale'] },
   { label: 'Deficits', kinds: ['deficit'] },
-  { label: 'Fund allocations', kinds: ['fund_allocation'] },
-  { label: 'Fund expenditures & adjustments', kinds: ['fund_expenditure', 'fund_adjustment', 'fund_opening'] },
   { label: 'Corrections & reversals', kinds: ['inventory_sale_reversal', 'inventory_stock_in_reversal'] },
   { label: 'Cash carry-overs', kinds: ['cash_carryover'] },
 ];

@@ -177,7 +177,7 @@ function Wizard({ onStaged }: { onStaged: (batchIds: string[]) => void }) {
                   >
                     <div className="text-sm font-semibold">{ws.name}</div>
                     <div className="mt-0.5 text-xs text-ink-muted">
-                      {k === 'daily_sales' ? 'Daily sales blocks' : k === 'expenses' ? 'Expenses & other sales blocks' : k === 'summary' ? 'Consolidated summary' : k === 'funds' ? 'Fund list (already configured)' : 'Generic table — map columns'}
+                      {k === 'daily_sales' ? 'Daily sales blocks' : k === 'expenses' ? 'Expenses & other sales blocks' : k === 'summary' ? 'Consolidated summary' : k === 'funds' ? 'Fund list (not used)' : 'Generic table — map columns'}
                       {ws.state !== 'visible' && ' · hidden'}
                     </div>
                   </button>
@@ -186,8 +186,8 @@ function Wizard({ onStaged }: { onStaged: (batchIds: string[]) => void }) {
             </div>
 
             {grid && kind === 'funds' && (
-              <Callout tone="info" title="Fund categories are already configured">
-                {Array.from({ length: grid.rowCount }, (_, i) => grid.value(i + 1, 1)).filter(Boolean).join(' · ')}. Manage them in Settings → Categories & funds.
+              <Callout tone="info" title="Nothing to import from this sheet">
+                It only lists fund types ({Array.from({ length: grid.rowCount }, (_, i) => grid.value(i + 1, 1)).filter(Boolean).join(' · ')}). Fund allocation is not used in this app.
               </Callout>
             )}
             {grid && kind === 'generic' && <GenericMapper grid={grid} mapping={mapping} onChange={setMapping} />}
@@ -449,7 +449,7 @@ function BatchReview({ batchId, onDone }: { batchId: string; onDone: () => void 
     setBusy(true);
     try {
       if (kind === 'commit') {
-        const res = await rpc<Record<string, number>>('commit_import_batch', { p_batch_id: batchId });
+        const res = await rpc<Record<string, number>>('sync_commit_import_batch', { p_batch_id: batchId });
         setResult(res);
         await invalidate(FINANCIAL_KEYS);
         toast.success('Import completed.');

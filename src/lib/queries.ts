@@ -5,8 +5,6 @@ import { toast } from 'sonner';
 import { rpc, supabase, unwrap } from './supabase';
 import type {
   Alert,
-  AllocationRule,
-  AllocationRun,
   CashCarryover,
   Category,
   Consignee,
@@ -16,9 +14,6 @@ import type {
   DashboardMetrics,
   FinCategory,
   FinancialTxn,
-  FundCategory,
-  FundSummaryRow,
-  FundTxn,
   InventoryItem,
   InventoryMovementRow,
   InventoryTxn,
@@ -313,55 +308,7 @@ export function useInventoryMovement(start: string, end: string) {
 export function useAlerts() {
   return useQuery({
     queryKey: keys.alerts,
-    queryFn: () => rpc<Alert[]>('get_alerts'),
+    queryFn: async () => (await rpc<Alert[]>('get_alerts')).filter((a) => !/^(rule|fund):/.test(a.alert_key)),
     refetchInterval: 5 * 60_000,
-  });
-}
-
-// ------------------------------------------------------------------- funds
-export function useFundCategories() {
-  return useQuery({
-    queryKey: [...keys.funds, 'categories'],
-    queryFn: async () => unwrap(await supabase.from('fund_categories').select('*').order('sort_order')) as FundCategory[],
-  });
-}
-
-export function useFundSummary(start: string, end: string) {
-  return useQuery({
-    queryKey: [...keys.funds, 'summary', start, end],
-    queryFn: () => rpc<FundSummaryRow[]>('fund_summary', { p_start: start, p_end: end }),
-  });
-}
-
-export function useAllocationRules() {
-  return useQuery({
-    queryKey: [...keys.funds, 'rules'],
-    queryFn: async () =>
-      unwrap(await supabase.from('allocation_rules').select('*, allocation_rule_lines(fund_category_id, percentage)').order('effective_from', { ascending: false })) as AllocationRule[],
-  });
-}
-
-export function useAllocationRuns() {
-  return useQuery({
-    queryKey: [...keys.funds, 'runs'],
-    queryFn: async () => unwrap(await supabase.from('fund_allocation_runs').select('*').order('period_start', { ascending: false })) as AllocationRun[],
-  });
-}
-
-export function useFundTxns(fundId: string | undefined, start: string, end: string) {
-  return useQuery({
-    queryKey: [...keys.funds, 'txns', fundId, start, end],
-    enabled: Boolean(fundId),
-    queryFn: async () =>
-      unwrap(
-        await supabase
-          .from('fund_transactions')
-          .select('*')
-          .eq('fund_category_id', fundId!)
-          .gte('transaction_date', start)
-          .lte('transaction_date', end)
-          .order('transaction_date', { ascending: false })
-          .order('txn_no', { ascending: false }),
-      ) as FundTxn[],
   });
 }

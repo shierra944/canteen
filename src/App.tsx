@@ -15,7 +15,6 @@ const DailySalesHistoryPage = lazy(() => import('@/pages/daily-sales/DailySalesH
 const DailySaleEditorPage = lazy(() => import('@/pages/daily-sales/DailySaleEditorPage'));
 const FinancePage = lazy(() => import('@/pages/finance/FinancePage'));
 const ReportsPage = lazy(() => import('@/pages/reports/ReportsPage'));
-const FundsPage = lazy(() => import('@/pages/funds/FundsPage'));
 const TransactionsPage = lazy(() => import('@/pages/transactions/TransactionsPage'));
 const UsersPage = lazy(() => import('@/pages/users/UsersPage'));
 const SettingsPage = lazy(() => import('@/pages/settings/SettingsPage'));
@@ -79,7 +78,6 @@ export function App() {
             <Route path="daily-sales/:id" element={<Guard anyOf={['sales.record', 'reports.view']}><DailySaleEditorPage /></Guard>} />
             <Route path="finance" element={<Guard anyOf={['finance.record', 'reports.view']}><FinancePage /></Guard>} />
             <Route path="reports" element={<Guard anyOf={['reports.view']}><ReportsPage /></Guard>} />
-            <Route path="funds" element={<Guard anyOf={['reports.view', 'funds.manage']}><FundsPage /></Guard>} />
             <Route path="transactions" element={<Guard anyOf={['reports.view', 'audit.view']}><TransactionsPage /></Guard>} />
             <Route path="users" element={<Guard anyOf={['users.manage']}><UsersPage /></Guard>} />
             <Route path="settings" element={<Guard anyOf={['settings.manage', 'import.run']}><SettingsPage /></Guard>} />

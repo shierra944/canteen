@@ -70,7 +70,7 @@ export default function UsersPage() {
               {r === 'admin'
                 ? 'Full access to every module, settings, users and the audit log.'
                 : r === 'staff'
-                  ? 'Records daily sales, expenses and other sales. Extra powers (inventory, corrections, funds) only when granted.'
+                  ? 'Records daily sales, expenses and other sales. Extra powers (inventory, corrections, settings) only when granted.'
                   : 'Views permitted dashboards and reports. Can never add or change records.'}
             </p>
             <div className="mt-2 text-xs text-ink-muted">{users.filter((u) => u.role === r).length} users</div>
