@@ -6,6 +6,8 @@
 // Excel formulas as values), recalculate totals ourselves, and flag anything
 // that does not reconcile for administrator review.
 
+import { fixSpelling } from '../spelling';
+
 export type CellValue = string | number | boolean | Date | null;
 
 export interface Grid {
@@ -173,7 +175,8 @@ export function parseDailySales(g: Grid): ParseResult {
     let lineNo = 0;
     for (let r = h.row + 2; r <= Math.min(g.rowCount, h.row + 70); r++) {
       if (isStopRow(g, r, [c - 1, c, c + 1, c + 4])) break;
-      const name = text(g.value(r, c));
+      // misspelled English words in item names are corrected (names of people are never on the list)
+      const name = fixSpelling(text(g.value(r, c)));
       const consignee = text(g.value(r, c + 1));
       const total = num(g.value(r, c + 2));
       const price = num(g.value(r, c + 3));
@@ -316,7 +319,7 @@ export function parseExpensesAndOtherSales(g: Grid): ParseResult {
     const blockRows: StagedRow[] = [];
     for (let r = h.row + 1; r <= Math.min(g.rowCount, h.row + 80); r++) {
       if (isStopRow(g, r, [c - 1, c, c + 1, c + 2])) break;
-      const description = text(g.value(r, c));
+      const description = fixSpelling(text(g.value(r, c)));
       const natureRaw = text(g.value(r, c + 1));
       const requestedBy = text(g.value(r, c + 2));
       const amount = num(g.value(r, c + 3));
@@ -538,7 +541,7 @@ export function parseGenericTransactions(g: Grid, map: GenericMapping): ParseRes
   const occurrences = new Map<string, number>();
   let blankStreak = 0;
   for (let r = map.headerRow + 1; r <= g.rowCount && blankStreak < 20; r++) {
-    const description = map.description ? text(g.value(r, map.description)) : '';
+    const description = map.description ? fixSpelling(text(g.value(r, map.description))) : '';
     const amountV = map.amount ? num(g.value(r, map.amount)) : null;
     const dateV = map.date ? parseDate(g.value(r, map.date)) : { iso: map.fixedDate ?? null };
     const typeRaw = map.type ? text(g.value(r, map.type)) : '';

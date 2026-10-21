@@ -1,6 +1,7 @@
-import { createContext, forwardRef, useContext, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
+import { createContext, forwardRef, useContext, type ChangeEvent, type FocusEvent, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { fixCompletedWords, fixSpelling } from '@/lib/spelling';
 
 const fieldBase =
   'w-full rounded-xl border border-surface-border bg-surface px-3 text-sm text-ink shadow-[inset_0_1px_1px_rgba(16,40,24,0.03)] transition-colors placeholder:text-ink-soft hover:border-surface-strong focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:bg-surface-sunken disabled:text-ink-muted aria-[invalid=true]:border-danger-500 aria-[invalid=true]:focus:ring-danger-500/20';
@@ -25,9 +26,54 @@ function useNeedsInput(props: { required?: boolean; value?: unknown; disabled?: 
   return { required, needs: required && empty && !props.disabled && !invalid };
 }
 
-export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & { prefix?: string }>(
-  ({ className, prefix, required, ...props }, ref) => {
+// types whose text is never English words
+const NO_SPELL_FIX = new Set(['email', 'password', 'number', 'date', 'time', 'datetime-local', 'month', 'week', 'url', 'tel', 'color', 'file', 'hidden', 'range', 'checkbox', 'radio']);
+
+/**
+ * Automatic spelling correction for typed text: a known misspelled English
+ * word is corrected as soon as it is finished (space or punctuation), and the
+ * whole text again when the field loses focus. Words not on the list
+ * (names, Filipino words) are never touched.
+ */
+function useSpellFix<T extends HTMLInputElement | HTMLTextAreaElement>(
+  enabled: boolean,
+  onChange?: (e: ChangeEvent<T>) => void,
+  onBlur?: (e: FocusEvent<T>) => void,
+) {
+  if (!enabled) return { onChange, onBlur };
+  return {
+    onChange: (e: ChangeEvent<T>) => {
+      const el = e.target;
+      const caret = el.selectionStart ?? el.value.length;
+      // only words before the caret, so the caret can be put back exactly
+      const before = fixCompletedWords(el.value.slice(0, caret));
+      if (before !== el.value.slice(0, caret)) {
+        el.value = before + el.value.slice(caret);
+        try {
+          el.setSelectionRange(before.length, before.length);
+        } catch {
+          /* not supported for this input */
+        }
+      }
+      onChange?.(e);
+    },
+    onBlur: (e: FocusEvent<T>) => {
+      const fixed = fixSpelling(e.target.value);
+      if (fixed !== e.target.value) {
+        e.target.value = fixed;
+        onChange?.(e as unknown as ChangeEvent<T>);
+      }
+      onBlur?.(e);
+    },
+  };
+}
+
+type SpellFixProp = { /** automatic spelling correction (default on for text) */ spellFix?: boolean };
+
+export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & { prefix?: string } & SpellFixProp>(
+  ({ className, prefix, required, spellFix = true, ...props }, ref) => {
     const { required: req, needs } = useNeedsInput({ required, ...props });
+    const fix = useSpellFix<HTMLInputElement>(spellFix && !NO_SPELL_FIX.has(props.type ?? 'text') && !props.readOnly, props.onChange, props.onBlur);
     const shared = {
       ref,
       required,
@@ -35,6 +81,7 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
       'data-needs-input': needs || undefined,
       title: needs ? 'Required — please fill in' : props.title,
       ...props,
+      ...fix,
     };
     return prefix ? (
       <div className="relative">
@@ -48,8 +95,9 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
 );
 Input.displayName = 'Input';
 
-export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(({ className, required, ...props }, ref) => {
+export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement> & SpellFixProp>(({ className, required, spellFix = true, ...props }, ref) => {
   const { required: req, needs } = useNeedsInput({ required, ...props });
+  const fix = useSpellFix<HTMLTextAreaElement>(spellFix && !props.readOnly, props.onChange, props.onBlur);
   return (
     <textarea
       ref={ref}
@@ -58,6 +106,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<H
       data-needs-input={needs || undefined}
       className={cn(fieldBase, 'min-h-[80px] py-2', needs && needsInputClass, className)}
       {...props}
+      {...fix}
     />
   );
 });
