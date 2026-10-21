@@ -61,7 +61,6 @@ export function DailySalesReport({ filters }: { filters: ReportFilters }) {
     period: describePeriod(start, end),
     schoolYear: activeSchoolYear?.name,
     filename: `QNHS-Daily-Sales-Report-${start}_${end}`,
-    orientation: 'landscape',
     columns: [],
     rows: [],
     sections: days.map((d) => ({
@@ -174,7 +173,6 @@ export function ExpensesReport({ filters }: { filters: ReportFilters }) {
     period: describePeriod(start, end),
     schoolYear: activeSchoolYear?.name,
     filename: `QNHS-Expenses-Other-Sales-Report-${start}_${end}`,
-    orientation: 'landscape',
     columns: [
       { key: 'no', header: 'No.', width: 6 },
       { key: 'transaction_date', header: 'Date', format: 'date', width: 14 },
@@ -276,7 +274,6 @@ export function InventoryReport({ filters }: { filters: ReportFilters }) {
     period: describePeriod(start, end),
     schoolYear: activeSchoolYear?.name,
     filename: `QNHS-Inventory-Report-${start}_${end}`,
-    orientation: 'landscape',
     columns: [
       { key: 'item_code', header: 'Code', width: 10 },
       { key: 'item_name', header: 'Item', width: 24 },

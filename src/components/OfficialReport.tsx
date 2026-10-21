@@ -82,7 +82,7 @@ export function PrintableReport({ report, className }: { report: OfficialReport 
   if (!report) return null;
   const sigs = signatories(settings);
   const table = (cols: OfficialReport['columns'], rows: OfficialReport['rows'], totals?: OfficialReport['totals']) => (
-    <table className="mt-3 w-full border-collapse text-[10px]">
+    <table className="mt-3 w-full border-collapse text-[10px] [overflow-wrap:anywhere]">
       <thead>
         <tr>
           {cols.map((c) => (
@@ -117,9 +117,9 @@ export function PrintableReport({ report, className }: { report: OfficialReport 
     </table>
   );
   return (
-    <div className={cn('print-only text-ink', report.orientation === 'landscape' && 'print-landscape', className)}>
+    <div className={cn('print-only text-ink', className)}>
       {/* footer pinned to the bottom of every printed page */}
-      <div className="fixed inset-x-0 bottom-0 bg-white px-[6mm] pb-[2mm]">
+      <div className="fixed inset-x-0 bottom-0 bg-white">
         <LetterheadFooter settings={settings} />
       </div>
       {/* thead / tfoot repeat on every printed page: header + space for the footer */}

@@ -506,7 +506,6 @@ export default function DailySaleEditorPage() {
     schoolYear: syName,
     filename: `Sales-${date}`,
     sheetName: `Sales-${date}`,
-    orientation: 'landscape',
     columns: [
       { key: 'no', header: 'No.', width: 6 },
       { key: 'item', header: 'Item', width: 26 },

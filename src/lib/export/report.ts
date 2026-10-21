@@ -22,7 +22,6 @@ export interface OfficialReport {
   totals?: Record<string, unknown> | null;
   summary?: { label: string; value: string; emphasis?: boolean }[];
   notes?: string[];
-  orientation?: 'portrait' | 'landscape';
   filename: string;
   /** Excel worksheet name (defaults to the title) */
   sheetName?: string;
@@ -69,6 +68,9 @@ export function exportCsv(r: OfficialReport) {
   downloadBlob(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }), `${r.filename}.csv`);
 }
 
+/** Every report is A4 portrait with a one-inch margin on all sides. */
+const MARGIN_IN = 1;
+
 // ----------------------------------------------------------------- Excel
 export async function exportExcel(r: OfficialReport, settings: SchoolSettings | undefined) {
   const [ExcelJS, letterhead] = await Promise.all([import('exceljs').then((m) => m.default), renderLetterhead(settings)]);
@@ -76,7 +78,14 @@ export async function exportExcel(r: OfficialReport, settings: SchoolSettings | 
   wb.creator = 'QNHS Canteen System';
   wb.created = new Date();
   const ws = wb.addWorksheet((r.sheetName ?? r.title).slice(0, 31).replace(/[\\/?*[\]:]/g, ' '), {
-    pageSetup: { paperSize: 9, orientation: r.orientation ?? 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 } },
+    pageSetup: {
+      paperSize: 9,
+      orientation: 'portrait',
+      fitToPage: true,
+      fitToWidth: 1,
+      fitToHeight: 0,
+      margins: { left: MARGIN_IN, right: MARGIN_IN, top: MARGIN_IN, bottom: MARGIN_IN, header: MARGIN_IN / 2, footer: MARGIN_IN / 2 },
+    },
   });
   const allCols = Math.max(r.columns.length, ...(r.sections?.map((s) => s.columns.length) ?? [0]), 4);
   ws.columns = Array.from({ length: allCols }, (_, i) => {
@@ -144,7 +153,7 @@ export async function exportExcel(r: OfficialReport, settings: SchoolSettings | 
         else cell.value = String(v);
         cell.numFmt = c.format === 'peso' ? '"₱"#,##0.00;[Red]-"₱"#,##0.00' : c.format === 'qty' ? '#,##0.###' : c.format === 'percent' ? '0.0%' : '@';
         cell.font = { name: 'Arial', size: 9, bold };
-        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: c.format !== 'date' && (c.format === 'text' || !c.format) };
+        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: c.format !== 'date' };
         cell.border = border;
         if (bold) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEAF4EC' } };
       });
@@ -212,18 +221,18 @@ export async function exportExcel(r: OfficialReport, settings: SchoolSettings | 
 export async function exportPdf(r: OfficialReport, settings: SchoolSettings | undefined) {
   const [{ jsPDF }, autoTableMod, letterhead] = await Promise.all([import('jspdf'), import('jspdf-autotable'), renderLetterhead(settings)]);
   const autoTable = autoTableMod.default;
-  const doc = new jsPDF({ orientation: r.orientation ?? 'portrait', unit: 'pt', format: 'a4' });
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
-  const margin = 36;
+  const margin = MARGIN_IN * 72; // everything, letterhead included, stays inside the margins
 
   // Letterhead geometry (drawn on every page at the end)
   const lhW = Math.min(W - margin * 2, 448); // ≈158 mm, as in the school's Word template
   const lhX = (W - lhW) / 2;
   const headerH = (lhW * letterhead.header.height) / letterhead.header.width;
   const footerH = (lhW * letterhead.footer.height) / letterhead.footer.width;
-  const HEADER_TOP = 18;
-  const FOOTER_BOTTOM = 14;
+  const HEADER_TOP = margin;
+  const FOOTER_BOTTOM = margin;
   const CONTENT_TOP = HEADER_TOP + headerH + 16;
   const CONTENT_BOTTOM = H - FOOTER_BOTTOM - footerH - 18;
 
@@ -264,7 +273,8 @@ export async function exportPdf(r: OfficialReport, settings: SchoolSettings | un
       foot: totals ? [cols.map((c) => pdfCell(totals[c.key], c.format))] : undefined,
       showFoot: 'lastPage',
       theme: 'grid',
-      styles: { font: 'helvetica', fontSize: 8, cellPadding: 3.5, lineColor: [190, 200, 193], lineWidth: 0.5, textColor: [32, 41, 35], halign: 'center', valign: 'middle' },
+      // portrait page: long text wraps inside its column; many columns get a smaller font
+      styles: { font: 'helvetica', fontSize: cols.length > 8 ? 7 : 8, cellPadding: cols.length > 8 ? 2.5 : 3.5, overflow: 'linebreak', lineColor: [190, 200, 193], lineWidth: 0.5, textColor: [32, 41, 35], halign: 'center', valign: 'middle' },
       headStyles: { fillColor: [8, 122, 53], textColor: 255, fontStyle: 'bold', halign: 'center', valign: 'middle' },
       footStyles: { fillColor: [234, 244, 236], textColor: [32, 41, 35], fontStyle: 'bold', halign: 'center', valign: 'middle' },
       // dates never wrap: the column grows to fit the date on one line

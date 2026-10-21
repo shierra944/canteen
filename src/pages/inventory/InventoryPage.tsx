@@ -131,7 +131,6 @@ export default function InventoryPage() {
     period: `As of ${new Intl.DateTimeFormat('en-PH', { dateStyle: 'long' }).format(new Date(todayPH()))}`,
     schoolYear: activeSchoolYear?.name,
     filename: `QNHS-Products-${todayPH()}`,
-    orientation: 'landscape',
     columns: [
       { key: 'name', header: 'Product', width: 28 },
       { key: 'type', header: 'Type / Consignee', width: 20 },

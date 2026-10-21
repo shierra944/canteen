@@ -199,7 +199,6 @@ export function MonthlyReport({ filters }: { filters: ReportFilters }) {
     period: describePeriod(start, end),
     schoolYear: data[0]?.school_year ?? undefined,
     filename: `QNHS-Monthly-Canteen-${start}_${end}`,
-    orientation: 'landscape',
     columns: [
       { key: 'no', header: 'No.', width: 6 },
       { key: 'month', header: 'Month', width: 16 },

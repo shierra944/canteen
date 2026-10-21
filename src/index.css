@@ -51,10 +51,7 @@
 @media print {
   @page {
     size: A4 portrait;
-    margin: 14mm 12mm;
-  }
-  @page landscape {
-    size: A4 landscape;
+    margin: 1in;
   }
   html,
   body {
@@ -70,9 +67,6 @@
     box-shadow: none !important;
     border: none !important;
     padding: 0 !important;
-  }
-  .print-landscape {
-    page: landscape;
   }
   table {
     page-break-inside: auto;

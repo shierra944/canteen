@@ -107,7 +107,6 @@ function Ledger({ period }: { period: Period }) {
     period: describePeriod(period.start, period.end),
     schoolYear: activeSchoolYear?.name,
     filename: `QNHS-Transactions-${period.start}_${period.end}`,
-    orientation: 'landscape',
     columns: [
       { key: 'ref_no', header: 'Reference', width: 14 },
       { key: 'txn_date', header: 'Date', format: 'date', width: 13 },

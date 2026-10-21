@@ -111,7 +111,6 @@ export default function FinancePage() {
     period: describePeriod(period.start, period.end),
     schoolYear: activeSchoolYear?.name,
     filename: `QNHS-Expenses-Other-Sales-${period.start}_${period.end}`,
-    orientation: 'landscape',
     columns: [
       { key: 'no', header: 'No.', width: 6 },
       { key: 'transaction_date', header: 'Date', format: 'date', width: 14 },
