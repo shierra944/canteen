@@ -91,30 +91,34 @@ export default function InventoryPage() {
     ro.observe(el);
     return () => ro.disconnect();
   }, [tab]);
-  const filtered = useMemo(() => {
+  // every filter except stock status — the Low / Out of stock cards set that one
+  const beforeStatus = useMemo(() => {
     const s = search.trim().toLowerCase();
-    const rows = enriched.filter(
+    return enriched.filter(
       (i) =>
         (!s || i.name.toLowerCase().includes(s) || i.item_code.toLowerCase().includes(s) || (i.supplier_name ?? '').toLowerCase().includes(s) || (i.consignee_name ?? '').toLowerCase().includes(s)) &&
         (!category || i.category_id === category) &&
         (!kind || (kind === 'consigned') === i.is_consigned) &&
         (!consigneeId || i.consignee_id === consigneeId) &&
-        (!status || i.stock_status === status) &&
         (showArchived ? !i.is_active : true),
     );
-    return sortRows(rows, sort.key, sort.dir);
-  }, [enriched, search, category, kind, consigneeId, status, sort, showArchived]);
+  }, [enriched, search, category, kind, consigneeId, showArchived]);
+  const filtered = useMemo(
+    () => sortRows(beforeStatus.filter((i) => !status || i.stock_status === status), sort.key, sort.dir),
+    [beforeStatus, status, sort],
+  );
 
   const pageRows = pageSize > 0 ? filtered.slice((page - 1) * pageSize, page * pageSize) : filtered;
   const totals = useMemo(
     () => ({
-      value: filtered.reduce((a, i) => a + toNumber(i.stock_value), 0),
+      // unaffected by clicking the Low / Out of stock cards
+      value: beforeStatus.reduce((a, i) => a + toNumber(i.stock_value), 0),
       delivered: filtered.reduce((a, i) => a + i.delivered, 0),
       sold: filtered.reduce((a, i) => a + i.sold, 0),
       low: items.filter((i) => i.is_active && i.stock_status === 'low_stock').length,
       out: items.filter((i) => i.is_active && i.stock_status === 'out_of_stock').length,
     }),
-    [filtered, items],
+    [beforeStatus, filtered, items],
   );
   const setStatus = (v: string) => {
     const p = new URLSearchParams(params);
@@ -201,9 +205,9 @@ export default function InventoryPage() {
         </TabsContent>
         <TabsContent value="products">
         <div className="mb-6 grid gap-4 sm:grid-cols-3">
-          <StatCard label="Inventory value (filtered)" value={peso(totals.value)} icon={<Boxes />} sub={`Canteen stock only · ${filtered.length} items shown`} onClick={() => setValueDetail(true)} />
-          <StatCard label="Low stock" value={totals.low} icon={<SlidersHorizontal />} tone={totals.low ? 'warning' : 'default'} onClick={() => setStatus('low_stock')} sub="At or below reorder level" />
-          <StatCard label="Out of stock" value={totals.out} icon={<Archive />} tone={totals.out ? 'negative' : 'default'} onClick={() => setStatus('out_of_stock')} sub="Zero or negative quantity" />
+          <StatCard label="Inventory value (filtered)" value={peso(totals.value)} icon={<Boxes />} sub={`Canteen stock only · ${beforeStatus.length} items`} onClick={() => setValueDetail(true)} active={valueDetail} />
+          <StatCard label="Low stock" value={totals.low} icon={<SlidersHorizontal />} tone={totals.low ? 'warning' : 'default'} onClick={() => setStatus(status === 'low_stock' ? '' : 'low_stock')} active={status === 'low_stock'} sub="At or below reorder level" />
+          <StatCard label="Out of stock" value={totals.out} icon={<Archive />} tone={totals.out ? 'negative' : 'default'} onClick={() => setStatus(status === 'out_of_stock' ? '' : 'out_of_stock')} active={status === 'out_of_stock'} sub="Zero or negative quantity" />
         </div>
 
         <Card>

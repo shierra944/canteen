@@ -101,8 +101,9 @@ export default function DashboardPage() {
               tone="positive"
               sub={<>Canteen shares {peso(m.daily_canteen_shares)} + other shares {peso(m.other_shares)}</>}
               onClick={finance ? () => setDetail('gross') : undefined}
+              active={detail === 'gross'}
             />
-            <StatCard label="Total Expenses" value={peso(m.expenses)} icon={<Receipt />} sub={<>Deficits recorded separately: {peso(m.deficit)}</>} onClick={finance ? () => setDetail('expenses') : undefined} />
+            <StatCard label="Total Expenses" value={peso(m.expenses)} icon={<Receipt />} sub={<>Deficits recorded separately: {peso(m.deficit)}</>} onClick={finance ? () => setDetail('expenses') : undefined} active={detail === 'expenses'} />
             <StatCard
               label="Other Sales"
               value={peso(m.other_shares)}
@@ -113,6 +114,7 @@ export default function DashboardPage() {
                   : 'Separately recorded sales only'
               }
               onClick={finance ? () => setDetail('other') : undefined}
+              active={detail === 'other'}
             />
             <StatCard
               label="Net Sales"
@@ -121,6 +123,7 @@ export default function DashboardPage() {
               tone={net < 0 ? 'negative' : 'positive'}
               sub={`Gross − Expenses${m.deduct_deficit_in_net ? ' − Deficit' : ''} (sales balance, not profit)`}
               onClick={finance ? () => setDetail('net') : undefined}
+              active={detail === 'net'}
             />
           </>
         )}

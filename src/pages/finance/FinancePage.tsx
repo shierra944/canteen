@@ -41,8 +41,14 @@ export default function FinancePage() {
   const [page, setPage] = useState(1);
   const [view, setView] = useState<'list' | 'daily' | 'monthly'>('list');
   const tableRef = useRef<HTMLDivElement>(null);
-  // clicking a summary card filters the table to the entries behind it
+  // clicking a summary card filters the table to the entries behind it;
+  // clicking the selected card again clears that filter
   const showType = (t: 'sale' | 'expense' | 'deficit') => {
+    if (type === t) {
+      setType('');
+      setPage(1);
+      return;
+    }
     setType(t);
     setCategoryId('');
     setStatus('posted');
@@ -80,15 +86,30 @@ export default function FinancePage() {
     onSuccess: () => setReverse(null),
   });
 
+  // Card totals ignore the type/category filter the cards themselves set,
+  // so selecting one card never zeroes the others.
+  const { data: cardRows = [] } = useFinancialTxns({
+    start: period.start,
+    end: period.end,
+    requestedBy: person || undefined,
+    status: 'posted',
+    search: search.trim() || undefined,
+  });
+
   const posted = rows.filter((r) => r.status === 'posted');
-  const sum = (t: string, pred: (r: FinancialTxn) => boolean = () => true) =>
-    posted.filter((r) => r.transaction_type === t && pred(r)).reduce((a, r) => a + toNumber(r.amount), 0);
-  const totals = {
-    sales: sum('sale', (r) => !r.included_in_daily_sales),
-    included: sum('sale', (r) => r.included_in_daily_sales),
-    expenses: sum('expense'),
-    deficit: sum('deficit'),
+  const totalsOf = (src: FinancialTxn[]) => {
+    const sum = (t: string, pred: (r: FinancialTxn) => boolean = () => true) =>
+      src.filter((r) => r.transaction_type === t && pred(r)).reduce((a, r) => a + toNumber(r.amount), 0);
+    return {
+      sales: sum('sale', (r) => !r.included_in_daily_sales),
+      included: sum('sale', (r) => r.included_in_daily_sales),
+      expenses: sum('expense'),
+      deficit: sum('deficit'),
+    };
   };
+  const totals = totalsOf(cardRows);
+  // the table and exports total only the rows they show
+  const listTotals = totalsOf(posted);
 
   const grouped = useMemo(() => {
     const keyOf = (d: string) => (view === 'monthly' ? d.slice(0, 7) : d);
@@ -128,10 +149,10 @@ export default function FinancePage() {
       status_label: r.status === 'posted' ? 'Posted' : 'Reversed',
     })),
     summary: [
-      { label: 'Sale (Other Shares)', value: peso(totals.sales) },
-      { label: 'Expense', value: peso(totals.expenses) },
-      { label: 'Deficit', value: peso(totals.deficit) },
-      ...(totals.included ? [{ label: 'Sales already in daily sales (excluded)', value: peso(totals.included) }] : []),
+      { label: 'Sale (Other Shares)', value: peso(listTotals.sales) },
+      { label: 'Expense', value: peso(listTotals.expenses) },
+      { label: 'Deficit', value: peso(listTotals.deficit) },
+      ...(listTotals.included ? [{ label: 'Sales already in daily sales (excluded)', value: peso(listTotals.included) }] : []),
     ],
     notes: ['Totals include posted transactions only. Reversed entries are listed for transparency and excluded from totals.'],
   });
@@ -168,9 +189,9 @@ export default function FinancePage() {
               <span className="text-xs text-ink-muted">{describePeriod(period.start, period.end)}</span>
             </div>
             <div className="grid gap-4 sm:grid-cols-3">
-              <StatCard label="Other sales (shares)" value={peso(totals.sales)} icon={<PhilippinePeso />} tone="positive" sub={totals.included ? `${peso(totals.included)} already in daily sales — excluded` : 'Added to Gross Sales'} onClick={() => showType('sale')} />
-              <StatCard label="Expenses" value={peso(totals.expenses)} icon={<Wallet />} sub="Deducted in Net Sales" onClick={() => showType('expense')} />
-              <StatCard label="Deficit" value={peso(totals.deficit)} icon={<MinusCircle />} tone={totals.deficit ? 'negative' : 'default'} sub="Recorded separately from expenses" onClick={() => showType('deficit')} />
+              <StatCard label="Other sales (shares)" value={peso(totals.sales)} icon={<PhilippinePeso />} tone="positive" sub={totals.included ? `${peso(totals.included)} already in daily sales — excluded` : 'Added to Gross Sales'} onClick={() => showType('sale')} active={type === 'sale'} />
+              <StatCard label="Expenses" value={peso(totals.expenses)} icon={<Wallet />} sub="Deducted in Net Sales" onClick={() => showType('expense')} active={type === 'expense'} />
+              <StatCard label="Deficit" value={peso(totals.deficit)} icon={<MinusCircle />} tone={totals.deficit ? 'negative' : 'default'} sub="Recorded separately from expenses" onClick={() => showType('deficit')} active={type === 'deficit'} />
             </div>
             <div ref={tableRef} className="scroll-mt-20" />
             <Card>
@@ -267,9 +288,9 @@ export default function FinancePage() {
                     <tr className="bg-surface-page font-semibold">
                       <TD>Total</TD>
                       <TD align="right">{posted.length}</TD>
-                      <TD align="right">{peso(totals.sales)}</TD>
-                      <TD align="right">{peso(totals.expenses)}</TD>
-                      <TD align="right">{peso(totals.deficit)}</TD>
+                      <TD align="right">{peso(listTotals.sales)}</TD>
+                      <TD align="right">{peso(listTotals.expenses)}</TD>
+                      <TD align="right">{peso(listTotals.deficit)}</TD>
                     </tr>
                   </tfoot>
                 </Table>

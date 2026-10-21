@@ -23,6 +23,7 @@ export function StatCard({
   sub,
   tone = 'default',
   onClick,
+  active = false,
 }: {
   label: string;
   value: ReactNode;
@@ -30,6 +31,8 @@ export function StatCard({
   sub?: ReactNode;
   tone?: 'default' | 'positive' | 'negative' | 'warning';
   onClick?: () => void;
+  /** The card's filter or detail view is currently selected. */
+  active?: boolean;
 }) {
   const iconTone = {
     default: 'bg-brand-50 text-brand-600',
@@ -41,9 +44,11 @@ export function StatCard({
   return (
     <Comp
       onClick={onClick}
+      aria-pressed={onClick ? active : undefined}
       className={cn(
         'card flex flex-col p-5 text-left',
         onClick && 'group cursor-pointer transition-[box-shadow,border-color] hover:border-brand-200 hover:shadow-raised focus-visible:ring-2',
+        active && 'border-brand-500 shadow-raised ring-2 ring-brand-500/30 hover:border-brand-500',
       )}
     >
       <div className="flex items-start justify-between gap-3">
