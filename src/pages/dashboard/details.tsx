@@ -6,7 +6,7 @@ import type { DashboardMetrics, FinancialTxn, InventoryItem } from '@/lib/types'
 import { DetailDialog, type DetailSection } from '@/components/DetailDialog';
 import { StockBadge } from '@/components/ui/badge';
 
-export type DashboardDetailKind = 'gross' | 'expenses' | 'other' | 'net' | 'inventory' | 'stock';
+export type DashboardDetailKind = 'gross' | 'expenses' | 'other' | 'net';
 
 const txnColumns = [
   { key: 'transaction_date', header: 'Date', format: 'date' as const },
@@ -35,7 +35,6 @@ export function DashboardDetail({
   const close = (o: boolean) => !o && onClose();
   if (kind === 'gross' || kind === 'net') return <DailyBreakdown kind={kind} start={start} end={end} period={period} metrics={metrics} open={open} onOpenChange={close} />;
   if (kind === 'expenses' || kind === 'other') return <TxnBreakdown kind={kind} start={start} end={end} period={period} open={open} onOpenChange={close} />;
-  if (kind === 'inventory' || kind === 'stock') return <StockBreakdown kind={kind} open={open} onOpenChange={close} />;
   return null;
 }
 

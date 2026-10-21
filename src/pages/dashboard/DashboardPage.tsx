@@ -12,7 +12,6 @@ import {
   Receipt,
   Scale,
   TrendingUp,
-  Wallet,
 } from 'lucide-react';
 import { useAuth } from '@/providers/auth';
 import { useApp } from '@/providers/app';
@@ -90,9 +89,9 @@ export default function DashboardPage() {
       {finance && <MoneyOnHandCard />}
 
       {/* Summary cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {metrics.isLoading || !m ? (
-          Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-[132px] rounded-2xl" />)
+          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[132px] rounded-2xl" />)
         ) : (
           <>
             <StatCard
@@ -122,21 +121,6 @@ export default function DashboardPage() {
               tone={net < 0 ? 'negative' : 'positive'}
               sub={`Gross − Expenses${m.deduct_deficit_in_net ? ' − Deficit' : ''} (sales balance, not profit)`}
               onClick={finance ? () => setDetail('net') : undefined}
-            />
-            <StatCard
-              label="Total Inventory Value"
-              value={peso(m.inventory_value)}
-              icon={<Wallet />}
-              sub={`${m.items_active} stock items${m.items_consigned ? ` · ${m.items_consigned} consigned (not valued)` : ''} · ${m.inventory_valuation === 'weighted_average' ? 'weighted-average cost' : 'latest cost'}`}
-              onClick={() => setDetail('inventory')}
-            />
-            <StatCard
-              label="Low-Stock Items"
-              value={qty(toNumber(m.items_low_stock) + toNumber(m.items_out_of_stock))}
-              icon={<AlertTriangle />}
-              tone={toNumber(m.items_low_stock) + toNumber(m.items_out_of_stock) > 0 ? 'warning' : 'default'}
-              sub={`${m.items_out_of_stock} out of stock · at or below reorder level`}
-              onClick={() => setDetail('stock')}
             />
           </>
         )}
