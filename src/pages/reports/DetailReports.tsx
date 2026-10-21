@@ -6,7 +6,7 @@ import { supabase, unwrap } from '@/lib/supabase';
 import { useDailySalesByDates, useFinancialTxns, useInventory, useInventoryMovement } from '@/lib/queries';
 import { describePeriod } from '@/lib/periods';
 import { formatDate, peso, qty, toNumber } from '@/lib/utils';
-import { FIN_TYPE_LABEL, INV_TYPE_LABEL, STOCK_STATUS_LABEL } from '@/lib/labels';
+import { FIN_TYPE_LABEL, INV_TYPE_LABEL, personLabel, STOCK_STATUS_LABEL } from '@/lib/labels';
 import type { InventoryTxn } from '@/lib/types';
 import type { OfficialReport } from '@/lib/export/report';
 import { Card, CardHeader } from '@/components/ui/card';
@@ -160,7 +160,6 @@ export function ExpensesReport({ filters }: { filters: ReportFilters }) {
     start,
     end,
     type: filters.type || undefined,
-    categoryId: filters.categoryId || undefined,
     status: 'posted',
     search: filters.item.trim() || undefined,
   });
@@ -178,8 +177,7 @@ export function ExpensesReport({ filters }: { filters: ReportFilters }) {
       { key: 'transaction_date', header: 'Date', format: 'date', width: 14 },
       { key: 'description', header: 'Item / Description', width: 30 },
       { key: 'type', header: 'Transaction Type', width: 14 },
-      { key: 'category_name', header: 'Nature of Item', width: 20 },
-      { key: 'requested_by', header: 'Requested By / Received From', width: 22 },
+      { key: 'requested_by', header: personLabel(filters.type), width: 22 },
       { key: 'amount', header: 'Amount', format: 'peso', width: 14 },
     ],
     rows: data.map((r, i) => ({ ...r, no: i + 1, type: FIN_TYPE_LABEL[r.transaction_type] + (r.included_in_daily_sales ? '*' : '') })),
@@ -207,8 +205,7 @@ export function ExpensesReport({ filters }: { filters: ReportFilters }) {
                 <TH>Date</TH>
                 <TH>Item / description</TH>
                 <TH>Type</TH>
-                <TH>Nature of item</TH>
-                <TH>Requested by / received from</TH>
+                <TH>{personLabel(filters.type)}</TH>
                 <TH align="right">Amount</TH>
               </tr>
             </THead>
@@ -221,16 +218,15 @@ export function ExpensesReport({ filters }: { filters: ReportFilters }) {
                     {r.included_in_daily_sales && <Badge className="ml-2">In daily sales</Badge>}
                   </TD>
                   <TD><TypeBadge type={r.transaction_type} /></TD>
-                  <TD className="text-ink-muted">{r.category_name ?? '—'}</TD>
                   <TD className="text-ink-muted">{r.requested_by ?? '—'}</TD>
                   <TD align="right" className="font-semibold">{peso(r.amount)}</TD>
                 </TR>
               ))}
             </tbody>
             <tfoot className="bg-surface-page text-sm font-semibold">
-              <tr><TD colSpan={5} className="text-right">Sales (other shares)</TD><TD align="right" className="text-brand-700">{peso(totals.sale)}</TD></tr>
-              <tr><TD colSpan={5} className="text-right">Expenses</TD><TD align="right">{peso(totals.expense)}</TD></tr>
-              <tr><TD colSpan={5} className="text-right">Deficit</TD><TD align="right" className="text-danger-600">{peso(totals.deficit)}</TD></tr>
+              <tr><TD colSpan={4} className="text-right">Sales (other shares)</TD><TD align="right" className="text-brand-700">{peso(totals.sale)}</TD></tr>
+              <tr><TD colSpan={4} className="text-right">Expenses</TD><TD align="right">{peso(totals.expense)}</TD></tr>
+              <tr><TD colSpan={4} className="text-right">Deficit</TD><TD align="right" className="text-danger-600">{peso(totals.deficit)}</TD></tr>
             </tfoot>
           </Table>
         )}

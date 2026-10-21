@@ -13,7 +13,6 @@ import type {
   DailySaleItem,
   DailySummaryRow,
   DashboardMetrics,
-  FinCategory,
   FinancialTxn,
   InventoryItem,
   InventoryMovementRow,
@@ -38,7 +37,6 @@ export const keys = {
   item: (id: string) => ['inventory', id] as const,
   dailySales: ['daily-sales'] as const,
   finance: ['finance'] as const,
-  finCategories: ['fin-categories'] as const,
   reports: ['reports'] as const,
   funds: ['funds'] as const,
   alerts: ['alerts'] as const,
@@ -242,14 +240,6 @@ export function useDailySalesByDates(start: string, end: string) {
 }
 
 // ----------------------------------------------------------------- finance
-export function useFinCategories() {
-  return useQuery({
-    queryKey: keys.finCategories,
-    queryFn: async () => unwrap(await supabase.from('financial_categories').select('*').order('transaction_type').order('sort_order')) as FinCategory[],
-    staleTime: 5 * 60_000,
-  });
-}
-
 export interface FinFilter {
   start?: string;
   end?: string;

@@ -12,7 +12,6 @@ export type DashboardDetailKind = 'gross' | 'expenses' | 'other' | 'net';
 const txnColumns = (type: FinTxnType) => [
   { key: 'transaction_date', header: 'Date', format: 'date' as const },
   { key: 'description', header: 'Item / description' },
-  { key: 'category_name', header: 'Category' },
   { key: 'requested_by', header: personLabel(type) },
   { key: 'amount', header: 'Amount', format: 'peso' as const },
 ];

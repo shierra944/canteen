@@ -1,13 +1,13 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { BadgeCheck, Boxes, CalendarRange, Calculator, FileSpreadsheet, FileText, Plus, RefreshCw, School, Tags, Trash2, Upload } from 'lucide-react';
+import { BadgeCheck, Boxes, CalendarRange, Calculator, FileSpreadsheet, FileText, Plus, RefreshCw, School, Trash2, Upload } from 'lucide-react';
 import { SyncPanel } from './SyncPanel';
 import { useAuth } from '@/providers/auth';
 import { rpc, supabase, unwrap } from '@/lib/supabase';
-import { keys, useAction, useFinCategories, useSchoolYears, useSettings } from '@/lib/queries';
-import { ADJUSTMENT_TYPES, FIN_TYPE_LABEL } from '@/lib/labels';
+import { keys, useAction, useSchoolYears, useSettings } from '@/lib/queries';
+import { ADJUSTMENT_TYPES } from '@/lib/labels';
 import { formatDate, formatDateTime, toNumber } from '@/lib/utils';
-import type { FinTxnType, SchoolSettings, Signatory } from '@/lib/types';
+import type { SchoolSettings, Signatory } from '@/lib/types';
 import { PageHeader } from '@/components/layout/AppShell';
 import { Card, CardBody, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -37,7 +37,6 @@ export default function SettingsPage() {
               <TabsTrigger value="inventory" icon={<Boxes />}>Inventory</TabsTrigger>
               <TabsTrigger value="reports" icon={<FileText />}>Reports</TabsTrigger>
               <TabsTrigger value="years" icon={<CalendarRange />}>School years</TabsTrigger>
-              <TabsTrigger value="categories" icon={<Tags />}>Categories</TabsTrigger>
             </>
           )}
           {can('import.run') && <TabsTrigger value="import" icon={<RefreshCw />}>Data migration & sync</TabsTrigger>}
@@ -51,7 +50,6 @@ export default function SettingsPage() {
             <TabsContent value="inventory"><InventoryTab s={settings} /></TabsContent>
             <TabsContent value="reports"><ReportsTab s={settings} /></TabsContent>
             <TabsContent value="years"><YearsTab /></TabsContent>
-            <TabsContent value="categories"><CategoriesTab /></TabsContent>
             <TabsContent value="import">
               <SyncPanel />
               <Card>
@@ -355,43 +353,3 @@ function YearsTab() {
   );
 }
 
-function CategoriesTab() {
-  const { data: cats = [] } = useFinCategories();
-  const [f, setF] = useState({ name: '', transaction_type: 'expense' as FinTxnType });
-  const add = useAction(async () => unwrap(await supabase.from('financial_categories').insert({ ...f, sort_order: 50 }).select('id').single()), {
-    success: 'Category added.',
-    invalidate: [keys.finCategories],
-    onSuccess: () => setF({ ...f, name: '' }),
-  });
-  const toggle = useAction(async ({ id, is_active }: { id: string; is_active: boolean }) => unwrap(await supabase.from('financial_categories').update({ is_active }).eq('id', id).select('id').single()), { invalidate: [keys.finCategories] });
-  return (
-    <div className="grid gap-5">
-      <Card>
-        <CardHeader title="Transaction categories" description="Configurable detail under Sale / Expense / Deficit." />
-        <CardBody>
-          <form className="flex flex-wrap gap-2" onSubmit={(e) => { e.preventDefault(); if (f.name.trim()) add.mutate(undefined); }}>
-            <Select className="w-36" value={f.transaction_type} onChange={(e) => setF({ ...f, transaction_type: e.target.value as FinTxnType })}>
-              <option value="sale">Sale</option>
-              <option value="expense">Expense</option>
-              <option value="deficit">Deficit</option>
-            </Select>
-            <div className="flex-1"><Input placeholder="Category name" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></div>
-            <Button type="submit" loading={add.isPending}><Plus /> Add</Button>
-          </form>
-        </CardBody>
-        <Table>
-          <THead><tr><TH>Type</TH><TH>Category</TH><TH align="right">Active</TH></tr></THead>
-          <tbody>
-            {cats.map((c) => (
-              <TR key={c.id}>
-                <TD className="text-ink-muted">{FIN_TYPE_LABEL[c.transaction_type]}</TD>
-                <TD>{c.name}</TD>
-                <TD align="right"><Switch checked={c.is_active} onChange={(v) => toggle.mutate({ id: c.id, is_active: v })} label={c.name} /></TD>
-              </TR>
-            ))}
-          </tbody>
-        </Table>
-      </Card>
-    </div>
-  );
-}

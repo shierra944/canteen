@@ -32,7 +32,6 @@ export interface DayFigures {
 
 const txnCols = (type: FinTxnType) => [
   { key: 'description', header: 'Item / description' },
-  { key: 'category_name', header: 'Category' },
   { key: 'requested_by', header: personLabel(type) },
   { key: 'amount', header: 'Amount', format: 'peso' as const },
 ];

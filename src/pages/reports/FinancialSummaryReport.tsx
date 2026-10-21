@@ -4,9 +4,7 @@ import { useApp } from '@/providers/app';
 import { useDailySummary, useExpenseBreakdown, useMonthlySummary } from '@/lib/queries';
 import { describePeriod } from '@/lib/periods';
 import { peso, toNumber } from '@/lib/utils';
-import { FIN_TYPE_LABEL } from '@/lib/labels';
 import type { OfficialReport } from '@/lib/export/report';
-import type { FinTxnType } from '@/lib/types';
 import { Card, CardBody, CardHeader } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/feedback';
 import { Table, TD, TH, THead, TR } from '@/components/ui/table';
@@ -37,7 +35,18 @@ export function FinancialSummaryReport({ filters }: { filters: ReportFilters }) 
   }, [rows]);
   const months = monthly.data ?? [];
   const series = useMemo(() => bucketSeries(rows, start, end, months.length > 2 ? 'monthly' : 'daily'), [rows, start, end, months.length]);
-  const expenseRows = (breakdown.data ?? []).filter((b) => b.transaction_type !== 'sale');
+  // categories are not used: one line for expenses, one for deficits
+  const expenseRows = (['expense', 'deficit'] as const)
+    .map((type) => {
+      const rows = (breakdown.data ?? []).filter((b) => b.transaction_type === type);
+      return {
+        transaction_type: type,
+        category: type === 'expense' ? 'Expenses' : 'Deficits',
+        total: rows.reduce((a, b) => a + toNumber(b.total), 0),
+        txn_count: rows.reduce((a, b) => a + toNumber(b.txn_count), 0),
+      };
+    })
+    .filter((b) => b.txn_count > 0);
   const expenseTotal = expenseRows.reduce((a, b) => a + toNumber(b.total), 0);
   const deduct = settings?.deduct_deficit_in_net !== false;
 
@@ -73,12 +82,11 @@ export function FinancialSummaryReport({ filters }: { filters: ReportFilters }) 
       {
         title: 'Expense and deficit breakdown',
         columns: [
-          { key: 'type', header: 'Type' },
-          { key: 'category', header: 'Category' },
+          { key: 'category', header: 'Type' },
           { key: 'txn_count', header: 'Entries', format: 'qty' },
           { key: 'total', header: 'Amount', format: 'peso' },
         ],
-        rows: expenseRows.map((b) => ({ ...b, type: FIN_TYPE_LABEL[b.transaction_type as FinTxnType] })),
+        rows: expenseRows,
         totals: { category: 'TOTAL', total: expenseTotal },
       },
     ],
@@ -163,7 +171,7 @@ export function FinancialSummaryReport({ filters }: { filters: ReportFilters }) 
             </Table>
           </Card>
           <Card>
-            <CardHeader title="Expense breakdown" description="By category (expenses and deficits)" />
+            <CardHeader title="Expense breakdown" description="Expenses and deficits" />
             <CardBody className="space-y-3">
               {expenseRows.length === 0 && <div className="py-6 text-center text-sm text-ink-muted">No expenses recorded</div>}
               {expenseRows.map((b) => {
@@ -173,7 +181,7 @@ export function FinancialSummaryReport({ filters }: { filters: ReportFilters }) 
                     <div className="mb-1 flex items-baseline justify-between gap-3 text-sm">
                       <span>
                         {b.category}
-                        {b.transaction_type === 'deficit' && <span className="ml-1.5 text-xs text-danger-600">(deficit)</span>}
+                        <span className="ml-1.5 text-xs text-ink-muted">({b.txn_count} entries)</span>
                       </span>
                       <span className="tabular font-medium">
                         {peso(b.total)} <span className="text-xs font-normal text-ink-muted">· {pct.toFixed(1)}%</span>

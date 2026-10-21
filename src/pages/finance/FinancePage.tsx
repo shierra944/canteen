@@ -5,7 +5,7 @@ import { useAuth } from '@/providers/auth';
 import { useApp } from '@/providers/app';
 import { useQuery } from '@tanstack/react-query';
 import { rpc, supabase, unwrap } from '@/lib/supabase';
-import { useAction, useCarryovers, useCashAsOf, useFinCategories, useFinancialTxns, useMonthlySummary } from '@/lib/queries';
+import { useAction, useCarryovers, useCashAsOf, useFinancialTxns, useMonthlySummary } from '@/lib/queries';
 import { addDays, cashPeriodDates, describePeriod, firstSchoolDayOnOrAfter, monthKey, monthRange, resolvePeriod, type Period } from '@/lib/periods';
 import { formatDate, formatDateTime, parseISODate, peso, toNumber, todayPH } from '@/lib/utils';
 import { FIN_TYPE_LABEL, personLabel } from '@/lib/labels';
@@ -34,7 +34,6 @@ export default function FinancePage() {
   const [params, setParams] = useSearchParams();
   const [period, setPeriod] = useState<Period>(() => resolvePeriod('this_month', workingDate));
   const [type, setType] = useState('');
-  const [categoryId, setCategoryId] = useState('');
   const [person, setPerson] = useState('');
   const [status, setStatus] = useState('posted');
   const [search, setSearch] = useState('');
@@ -50,18 +49,15 @@ export default function FinancePage() {
       return;
     }
     setType(t);
-    setCategoryId('');
     setStatus('posted');
     setView('list');
     setPage(1);
     requestAnimationFrame(() => tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   };
-  const { data: cats = [] } = useFinCategories();
   const { data: rows = [], isLoading, error, refetch } = useFinancialTxns({
     start: period.start,
     end: period.end,
     type: type || undefined,
-    categoryId: categoryId || undefined,
     requestedBy: person || undefined,
     status: status || undefined,
     search: search.trim() || undefined,
@@ -86,7 +82,7 @@ export default function FinancePage() {
     onSuccess: () => setReverse(null),
   });
 
-  // Card totals ignore the type/category filter the cards themselves set,
+  // Card totals ignore the type filter the cards themselves set,
   // so selecting one card never zeroes the others.
   const { data: cardRows = [] } = useFinancialTxns({
     start: period.start,
@@ -126,7 +122,7 @@ export default function FinancePage() {
     return [...m.values()].sort((a, b) => b.key.localeCompare(a.key));
   }, [posted, view]);
 
-  const active = Boolean(type || categoryId || person || status !== 'posted' || search);
+  const active = Boolean(type || person || status !== 'posted' || search);
   const report = (): OfficialReport => ({
     title: 'Canteen Daily Expenses & Other Sales',
     period: describePeriod(period.start, period.end),
@@ -137,7 +133,6 @@ export default function FinancePage() {
       { key: 'transaction_date', header: 'Date', format: 'date', width: 14 },
       { key: 'description', header: 'Item', width: 28 },
       { key: 'type', header: 'Nature of Item', width: 12 },
-      { key: 'category_name', header: 'Category', width: 18 },
       { key: 'requested_by', header: personLabel(type), width: 20 },
       { key: 'amount', header: 'Amount', format: 'peso', width: 14 },
       { key: 'status_label', header: 'Status', width: 10 },
@@ -199,7 +194,6 @@ export default function FinancePage() {
                 active={active}
                 onClear={() => {
                   setType('');
-                  setCategoryId('');
                   setPerson('');
                   setStatus('posted');
                   setSearch('');
@@ -212,21 +206,11 @@ export default function FinancePage() {
                   </div>
                 </FilterField>
                 <FilterField label="Type">
-                  <Select value={type} onChange={(e) => { setType(e.target.value); setCategoryId(''); setPage(1); }}>
+                  <Select value={type} onChange={(e) => { setType(e.target.value); setPage(1); }}>
                     <option value="">All types</option>
                     <option value="sale">Sale</option>
                     <option value="expense">Expense</option>
                     <option value="deficit">Deficit</option>
-                  </Select>
-                </FilterField>
-                <FilterField label="Category">
-                  <Select value={categoryId} onChange={(e) => { setCategoryId(e.target.value); setPage(1); }}>
-                    <option value="">All categories</option>
-                    {cats.filter((c) => !type || c.transaction_type === type).map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {FIN_TYPE_LABEL[c.transaction_type]} · {c.name}
-                      </option>
-                    ))}
                   </Select>
                 </FilterField>
                 <FilterField label="Person responsible">
@@ -303,7 +287,6 @@ export default function FinancePage() {
                         <TH>Date</TH>
                         <TH>Item / description</TH>
                         <TH>Nature</TH>
-                        <TH>Category</TH>
                         <TH>{personLabel(type)}</TH>
                         <TH align="right">Amount</TH>
                         <TH>Recorded by</TH>
@@ -322,7 +305,6 @@ export default function FinancePage() {
                             {r.source_type !== 'manual' && <div className="text-xs text-ink-muted">Source: {r.source_type === 'stock_receipt' ? 'stock receipt' : 'Excel import'}</div>}
                           </TD>
                           <TD><TypeBadge type={r.transaction_type} /></TD>
-                          <TD className="text-ink-muted">{r.category_name ?? '—'}</TD>
                           <TD className="text-ink-muted">{r.requested_by ?? '—'}</TD>
                           <TD align="right" className="font-semibold">{peso(r.amount)}</TD>
                           <TD className="whitespace-nowrap text-ink-muted">{r.created_by_name ?? '—'}</TD>
@@ -393,7 +375,6 @@ export default function FinancePage() {
               <KeyValue label="Date">{formatDate(detail.transaction_date, 'long')}</KeyValue>
               <KeyValue label="Type"><TypeBadge type={detail.transaction_type} /></KeyValue>
               <KeyValue label="Amount">{peso(detail.amount)}</KeyValue>
-              <KeyValue label="Category">{detail.category_name ?? '—'}</KeyValue>
               <KeyValue label={personLabel(detail.transaction_type)}>{detail.requested_by ?? '—'}</KeyValue>
               <KeyValue label="Status"><StatusBadge status={detail.status} /></KeyValue>
               <KeyValue label="Counted in Other Shares">{detail.transaction_type === 'sale' ? (detail.included_in_daily_sales || detail.status !== 'posted' ? 'No' : 'Yes') : 'n/a'}</KeyValue>

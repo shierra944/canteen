@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Input, Select } from '@/components/ui/form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FilterField, PeriodPicker } from '@/components/shared';
-import { useCategories, useFinCategories } from '@/lib/queries';
+import { useCategories } from '@/lib/queries';
 import { ConsolidatedReport, MonthlyReport } from './SummaryReports';
 import { DailySalesReport, ExpensesReport, InventoryReport } from './DetailReports';
 import { FinancialSummaryReport } from './FinancialSummaryReport';
@@ -18,7 +18,6 @@ export interface ReportFilters {
   period: Period;
   type: string;
   item: string;
-  categoryId: string;
   invCategoryId: string;
 }
 
@@ -37,12 +36,11 @@ export default function ReportsPage() {
   const [params, setParams] = useSearchParams();
   const tab = params.get('tab') ?? 'consolidated';
   const initial = useMemo(() => resolvePeriod('this_month', workingDate), []); // eslint-disable-line react-hooks/exhaustive-deps
-  const [f, setF] = useState<ReportFilters>({ period: initial, type: '', item: '', categoryId: '', invCategoryId: '' });
-  const { data: finCats = [] } = useFinCategories();
+  const [f, setF] = useState<ReportFilters>({ period: initial, type: '', item: '', invCategoryId: '' });
   const { data: invCats = [] } = useCategories();
   const year = Number(f.period.start.slice(0, 4));
   const month = Number(f.period.start.slice(5, 7)) - 1;
-  const active = f.type || f.item || f.categoryId || f.invCategoryId || f.period.start !== initial.start || f.period.end !== initial.end;
+  const active = f.type || f.item || f.invCategoryId || f.period.start !== initial.start || f.period.end !== initial.end;
   const years = useMemo(() => {
     const now = Number(workingDate.slice(0, 4));
     return Array.from({ length: 6 }, (_, i) => now - i);
@@ -92,39 +90,30 @@ export default function ReportsPage() {
               </Select>
             </FilterField>
             <FilterField label="Transaction type" className="min-w-[130px]">
-              <Select value={f.type} onChange={(e) => setF((s) => ({ ...s, type: e.target.value, categoryId: '' }))}>
+              <Select value={f.type} onChange={(e) => setF((s) => ({ ...s, type: e.target.value }))}>
                 <option value="">All</option>
                 <option value="sale">Sale</option>
                 <option value="expense">Expense</option>
                 <option value="deficit">Deficit</option>
               </Select>
             </FilterField>
-            <FilterField label="Category" className="min-w-[160px]">
-              <Select
-                value={tab === 'inventory' || tab === 'daily-sales' ? f.invCategoryId : f.categoryId}
-                onChange={(e) => setF((s) => (tab === 'inventory' || tab === 'daily-sales' ? { ...s, invCategoryId: e.target.value } : { ...s, categoryId: e.target.value }))}
-              >
-                <option value="">All</option>
-                {tab === 'inventory' || tab === 'daily-sales'
-                  ? invCats.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))
-                  : finCats
-                      .filter((c) => !f.type || c.transaction_type === f.type)
-                      .map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}
-                        </option>
-                      ))}
-              </Select>
-            </FilterField>
+            {(tab === 'inventory' || tab === 'daily-sales') && (
+              <FilterField label="Product category" className="min-w-[160px]">
+                <Select value={f.invCategoryId} onChange={(e) => setF((s) => ({ ...s, invCategoryId: e.target.value }))}>
+                  <option value="">All</option>
+                  {invCats.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </Select>
+              </FilterField>
+            )}
             <FilterField label="Item" className="min-w-[160px]">
               <Input value={f.item} onChange={(e) => setF((s) => ({ ...s, item: e.target.value }))} placeholder="Item name contains…" />
             </FilterField>
             <button
-              onClick={() => setF({ period: initial, type: '', item: '', categoryId: '', invCategoryId: '' })}
+              onClick={() => setF({ period: initial, type: '', item: '', invCategoryId: '' })}
               disabled={!active}
               className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-[13px] font-medium text-ink-muted hover:bg-surface-sunken hover:text-ink disabled:opacity-40"
             >

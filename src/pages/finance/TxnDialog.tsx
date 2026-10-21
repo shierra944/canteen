@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { rpc } from '@/lib/supabase';
-import { useAction, useFinCategories } from '@/lib/queries';
+import { useAction } from '@/lib/queries';
 import { useAuth } from '@/providers/auth';
 import { useApp } from '@/providers/app';
 import { FIN_TYPE_LABEL, personLabel } from '@/lib/labels';
@@ -8,12 +8,11 @@ import { cn, todayPH, toNumber, uuid } from '@/lib/utils';
 import type { FinancialTxn, FinTxnType } from '@/lib/types';
 import { Dialog } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Checkbox, Field, Input, Select, Textarea } from '@/components/ui/form';
+import { Checkbox, Field, Input, Textarea } from '@/components/ui/form';
 import { Callout } from '@/components/ui/feedback';
 
 
 export function TxnDialog({ open, onOpenChange, txn }: { open: boolean; onOpenChange: (o: boolean) => void; txn?: FinancialTxn | null }) {
-  const { data: cats = [] } = useFinCategories();
   const { profile, can } = useAuth();
   const { workingDate } = useApp();
   const editing = Boolean(txn);
@@ -26,6 +25,7 @@ export function TxnDialog({ open, onOpenChange, txn }: { open: boolean; onOpenCh
   const init = () => ({
     transaction_date: txn?.transaction_date ?? workingDate,
     transaction_type: (txn?.transaction_type ?? 'expense') as FinTxnType,
+    // categories are no longer used; an edited entry keeps whatever it had
     category_id: txn?.category_id ?? '',
     description: txn?.description ?? '',
     requested_by: txn?.requested_by ?? '',
@@ -69,7 +69,6 @@ export function TxnDialog({ open, onOpenChange, txn }: { open: boolean; onOpenCh
     if (Object.keys(err).length === 0) save.mutate(undefined);
   }
 
-  const typeCats = cats.filter((c) => c.transaction_type === f.transaction_type && (c.is_active || c.id === f.category_id));
   const typeHelp: Record<FinTxnType, string> = {
     sale: 'Revenue counted as "Other Shares" (e.g. canteen share remitted by a vendor, rice or iced water sold).',
     expense: 'Money spent for canteen operations (e.g. water, rice, transportation, salary).',
@@ -133,17 +132,7 @@ export function TxnDialog({ open, onOpenChange, txn }: { open: boolean; onOpenCh
         <Field label="Item / description" required error={errors.description} className="sm:col-span-2">
           <Input value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} placeholder="e.g. 2 gallons of water" aria-invalid={!!errors.description} />
         </Field>
-        <Field label="Category">
-          <Select value={f.category_id} onChange={(e) => setF({ ...f, category_id: e.target.value })}>
-            <option value="">— Uncategorized —</option>
-            {typeCats.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field label={personLabel(f.transaction_type)}>
+        <Field label={personLabel(f.transaction_type)} className="sm:col-span-2">
           <Input value={f.requested_by} onChange={(e) => setF({ ...f, requested_by: e.target.value })} placeholder="e.g. Canteen-in-Charge" />
         </Field>
         <Field label="Remarks" className="sm:col-span-2">
