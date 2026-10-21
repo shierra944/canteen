@@ -218,7 +218,7 @@ export async function exportPdf(r: OfficialReport, settings: SchoolSettings | un
   const margin = 36;
 
   // Letterhead geometry (drawn on every page at the end)
-  const lhW = Math.min(W - margin * 2, 540);
+  const lhW = Math.min(W - margin * 2, 448); // ≈158 mm, as in the school's Word template
   const lhX = (W - lhW) / 2;
   const headerH = (lhW * letterhead.header.height) / letterhead.header.width;
   const footerH = (lhW * letterhead.footer.height) / letterhead.footer.width;

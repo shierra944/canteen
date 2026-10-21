@@ -3,10 +3,15 @@
 // the same on any computer, with or without the Old English font installed.
 import type { SchoolSettings } from '../types';
 
-// a restrained blackletter — formal, but less ornate than Old English Text
-export const LETTERHEAD_FONT = 'Grenze Gotisch';
-const TEXT = '#595959';
-const RULE = '#808080';
+// Same fonts as the school's Word template. Old English Text MT ships with
+// Microsoft Office (licensed, so it cannot be bundled); computers without it
+// use the bundled look-alike, scaled to the same size.
+export const LETTERHEAD_FONT = 'Old English Text MT';
+export const LETTERHEAD_FALLBACK_FONT = 'UnifrakturMaguntia';
+export const LETTERHEAD_TEXT_FONT = 'Tahoma, Verdana, Arial, sans-serif';
+export const LETTERHEAD_BLACKLETTER = `"${LETTERHEAD_FONT}", "${LETTERHEAD_FALLBACK_FONT}", serif`;
+const TEXT = '#000000';
+const RULE = '#000000';
 
 export interface LetterheadContent {
   republic: string;
@@ -66,27 +71,51 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
 
 // The font ships with the app (public/fonts) so the letterhead never depends
 // on a network font or on whatever fonts the computer has installed.
-export const LETTERHEAD_FONT_URL = '/fonts/GrenzeGotisch.ttf';
-let fontReady: Promise<void> | null = null;
-export function ensureLetterheadFont(): Promise<void> {
+export const LETTERHEAD_FALLBACK_URL = '/fonts/UnifrakturMaguntia.ttf';
+
+/** True when a font is installed on this computer (system fonts can't be queried directly). */
+function hasSystemFont(name: string): boolean {
+  const ctx = document.createElement('canvas').getContext('2d');
+  if (!ctx) return false;
+  const sample = 'Republic of the Philippines RDE 0123';
+  return ['monospace', 'serif'].some((base) => {
+    ctx.font = `40px ${base}`;
+    const w = ctx.measureText(sample).width;
+    ctx.font = `40px "${name}", ${base}`;
+    return ctx.measureText(sample).width !== w;
+  });
+}
+
+let fontReady: Promise<string> | null = null;
+/** Resolves to the blackletter font family that will actually be used. */
+export function ensureLetterheadFont(): Promise<string> {
   if (!fontReady) {
     fontReady = (async () => {
+      if (hasSystemFont(LETTERHEAD_FONT)) return LETTERHEAD_FONT;
       try {
-        if (![...document.fonts].some((f) => f.family.replace(/"/g, '') === LETTERHEAD_FONT && f.status === 'loaded')) {
-          const face = new FontFace(LETTERHEAD_FONT, `url(${LETTERHEAD_FONT_URL})`, { weight: '100 900' });
+        if (![...document.fonts].some((x) => x.family.replace(/"/g, '') === LETTERHEAD_FALLBACK_FONT && x.status === 'loaded')) {
+          const face = new FontFace(LETTERHEAD_FALLBACK_FONT, `url(${LETTERHEAD_FALLBACK_URL})`);
           document.fonts.add(await face.load());
         }
-        await document.fonts.load(`500 22px "${LETTERHEAD_FONT}"`);
       } catch {
         fontReady = null; // try again on the next export
       }
+      return LETTERHEAD_FALLBACK_FONT;
     })();
   }
   return fontReady;
 }
 
-async function ensureFonts() {
-  await ensureLetterheadFont();
+/** Largest font size (up to max) at which text fits the given width. */
+function fitFont(ctx: CanvasRenderingContext2D, text: string, font: (px: number) => string, width: number, max = 60): string {
+  ctx.font = font(100);
+  const w100 = ctx.measureText(text).width || 1;
+  const px = Math.min(max, (100 * width) / w100);
+  return font(px);
+}
+
+async function ensureFonts(): Promise<string> {
+  return ensureLetterheadFont();
 }
 
 /** Draw an image inside a box, keeping its aspect ratio, centred in the box. */
@@ -124,9 +153,9 @@ let cache: { key: string; images: LetterheadImages } | null = null;
 /** Header and footer as PNG data URLs (cached per settings). */
 export async function renderLetterhead(settings: SchoolSettings | undefined): Promise<LetterheadImages> {
   const t = letterheadContent(settings);
-  const key = JSON.stringify({ t, font: LETTERHEAD_FONT });
+  const blackletter = await ensureFonts();
+  const key = JSON.stringify({ t, blackletter });
   if (cache?.key === key) return cache.images;
-  await ensureFonts();
   const [seal, bagong, deped, matatag, qnhs, iLoc, iPhone, iMail, iFb] = await Promise.all([
     loadImage('/logos/deped.png'),
     loadImage('/logos/bagong-pilipinas.jpg'),
@@ -140,21 +169,26 @@ export async function renderLetterhead(settings: SchoolSettings | undefined): Pr
   ]);
 
   // ---------------------------------------------------------------- header
-  const HH = 152;
+  // Proportions measured from the school's Word template, relative to the
+  // school line (= SCHOOL_W): line widths and baselines, seal and rule.
+  const HH = 244;
+  const SCHOOL_W = 560;
   const h = canvas(HH);
-  drawContain(h.ctx, seal, W / 2 - 25, 1, 50, 50);
+  drawContain(h.ctx, seal, W / 2 - 40, 2, 80, 80);
   h.ctx.fillStyle = TEXT;
-  h.ctx.font = `500 17px "${LETTERHEAD_FONT}", Georgia, serif`;
-  h.ctx.fillText(t.republic, W / 2, 70);
-  h.ctx.font = `500 22px "${LETTERHEAD_FONT}", Georgia, serif`;
-  h.ctx.fillText(t.department, W / 2, 93);
-  h.ctx.font = '12px Arial, Helvetica, sans-serif';
-  h.ctx.fillText(t.region, W / 2, 109);
-  h.ctx.font = 'bold 12.5px Arial, Helvetica, sans-serif';
-  h.ctx.fillText(t.division, W / 2, 125);
-  h.ctx.fillText(t.schoolLine, W / 2, 140);
+  const bl = (px: number) => `${px}px "${blackletter}", serif`;
+  const tahoma = (bold: boolean) => (px: number) => `${bold ? 'bold ' : ''}${px}px ${LETTERHEAD_TEXT_FONT}`;
+  const line = (text: string, font: (px: number) => string, widthRatio: number, baseline: number) => {
+    h.ctx.font = fitFont(h.ctx, text, font, SCHOOL_W * widthRatio);
+    h.ctx.fillText(text, W / 2, baseline);
+  };
+  line(t.republic, bl, 0.509, 104);
+  line(t.department, bl, 0.628, 147);
+  line(t.region, tahoma(false), 0.517, 175);
+  line(t.division, tahoma(true), 0.815, 199);
+  line(t.schoolLine, tahoma(true), 1, 226);
   h.ctx.fillStyle = RULE;
-  h.ctx.fillRect(0, 146, W, 2.5);
+  h.ctx.fillRect(0, 235, W, 3.5);
 
   // ---------------------------------------------------------------- footer
   const FH = 104;

@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { FileDown, FileSpreadsheet, FileText, Printer } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApp } from '@/providers/app';
 import { useAuth } from '@/providers/auth';
 import { exportCsv, exportExcel, exportPdf, formatCell, signatories, type OfficialReport } from '@/lib/export/report';
-import { CONTACT_ICONS, LETTERHEAD_FONT, ensureLetterheadFont, letterheadContent, svgDataUrl } from '@/lib/export/letterhead';
+import { renderLetterhead, type LetterheadImages } from '@/lib/export/letterhead';
 import type { SchoolSettings } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Button } from './ui/button';
@@ -29,8 +29,9 @@ export function ExportMenu({
   if (!(allow ?? can('reports.export'))) return null;
   const run = async (kind: 'xlsx' | 'pdf' | 'csv' | 'print') => {
     if (kind === 'print') {
-      // the letterhead font must be loaded before the print dialog renders
-      await ensureLetterheadFont();
+      // make sure the letterhead images are ready before the print dialog renders
+      await renderLetterhead(settings);
+      await new Promise((r) => setTimeout(r, 60));
       // "Save as PDF" from the print dialog uses the page title as file name
       const previous = document.title;
       document.title = report().filename;
@@ -133,7 +134,7 @@ export function PrintableReport({ report, className }: { report: OfficialReport 
         <tfoot>
           <tr>
             <td className="p-0">
-              <div className="h-[34mm]" />
+              <div className="h-[30mm]" />
             </td>
           </tr>
         </tfoot>
@@ -187,58 +188,32 @@ export function PrintableReport({ report, className }: { report: OfficialReport 
 }
 
 const exact = { printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' } as const;
+// letterhead width on paper (same as the PDF): the template's proportions
+const LETTERHEAD_PRINT_WIDTH = '158mm';
 
-/** Official DepEd letterhead header (seal, Old English lines, school line, rule). */
+/** The rendered letterhead (identical to the PDF / Excel one). */
+function useLetterheadImages(settings: SchoolSettings | undefined) {
+  const [images, setImages] = useState<LetterheadImages | null>(null);
+  useEffect(() => {
+    let alive = true;
+    renderLetterhead(settings).then((r) => alive && setImages(r)).catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [settings]);
+  return images;
+}
+
+/** Official DepEd letterhead header, exactly as in the school's template. */
 export function LetterheadHeader({ settings }: { settings: SchoolSettings | undefined }) {
-  const t = letterheadContent(settings);
-  return (
-    <div className="text-center leading-tight text-[#595959]" style={exact}>
-      <img src="/logos/deped.png" alt="DepEd seal" className="mx-auto h-[13mm] w-[13mm] object-contain" />
-      <div className="mt-1 text-[14px] font-medium" style={{ fontFamily: `"${LETTERHEAD_FONT}", Georgia, serif` }}>
-        {t.republic}
-      </div>
-      <div className="text-[18px] font-medium" style={{ fontFamily: `"${LETTERHEAD_FONT}", Georgia, serif` }}>
-        {t.department}
-      </div>
-      <div className="mt-0.5 font-[Arial,Helvetica,sans-serif] text-[9.5px]">{t.region}</div>
-      <div className="font-[Arial,Helvetica,sans-serif] text-[10px] font-bold">{t.division}</div>
-      <div className="font-[Arial,Helvetica,sans-serif] text-[10px] font-bold">{t.schoolLine}</div>
-      <div className="mt-1 h-[2px] bg-[#808080]" />
-    </div>
-  );
+  const images = useLetterheadImages(settings);
+  if (!images) return <div style={{ height: '51mm' }} />;
+  return <img src={images.header.dataUrl} alt="DepEd letterhead" className="mx-auto block" style={{ ...exact, width: LETTERHEAD_PRINT_WIDTH }} />;
 }
 
 /** Official letterhead footer (logos + contact details). */
 export function LetterheadFooter({ settings }: { settings: SchoolSettings | undefined }) {
-  const t = letterheadContent(settings);
-  const rows: [string, string, boolean][] = [
-    [CONTACT_ICONS.location, t.address, false],
-    [CONTACT_ICONS.phone, t.phone, false],
-    [CONTACT_ICONS.email, t.email, true],
-    [CONTACT_ICONS.facebook, t.facebook, false],
-  ];
-  return (
-    <div className="font-[Arial,Helvetica,sans-serif]" style={exact}>
-      <div className="h-px bg-[#808080]" />
-      <div className="flex items-center gap-5 pt-2">
-        <div className="flex w-[19mm] flex-col items-center">
-          <img src="/logos/bagong-pilipinas.jpg" alt="Bagong Pilipinas" className="h-[15mm] object-contain" />
-          <span className="mt-0.5 text-[6.5px] font-bold tracking-wide text-[#5B6E8F]">BAGONG PILIPINAS</span>
-        </div>
-        <div className="flex w-[29mm] flex-col items-center gap-1">
-          <img src="/logos/deped-wordmark.webp" alt="DepEd" className="h-[11mm] object-contain" />
-          <img src="/logos/matatag.png" alt="MATATAG" className="h-[8mm] object-contain" />
-        </div>
-        <img src={t.qnhsLogo} alt="Quiot National High School" className="h-[21mm] w-[21mm] object-contain" />
-        <ul className="ml-6 space-y-[3px] text-[11px] text-[#555]">
-          {rows.map(([icon, text, link]) => (
-            <li key={text} className="flex items-center gap-2">
-              <img src={svgDataUrl(icon)} alt="" className="h-[13px] w-[13px]" />
-              <span className={link ? 'text-[#2F6FB6] underline' : ''}>{text}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
-  );
+  const images = useLetterheadImages(settings);
+  if (!images) return null;
+  return <img src={images.footer.dataUrl} alt="School contact details" className="mx-auto block" style={{ ...exact, width: LETTERHEAD_PRINT_WIDTH }} />;
 }
