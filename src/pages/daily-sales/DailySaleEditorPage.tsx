@@ -745,7 +745,7 @@ export default function DailySaleEditorPage() {
             <Card>
               <CardHeader
                 title="Daily sales sheet"
-                description={`Sales = Sold × Selling price · Unsold = Total − Sold (locked) · Canteen share = (Selling − Cost) × Sold, or ₱${shareRate.toFixed(2)} × Sold without a cost price · Remit = Sales − Canteen share`}
+                description={`Sales = Sold × Selling price · Unsold = Total − Sold · Canteen share = (Selling − Cost) × Sold, or ₱${shareRate.toFixed(2)} × Sold without a cost price · Remit = Sales − Canteen share`}
                 actions={
                   editable && (
                     <>
@@ -786,7 +786,7 @@ export default function DailySaleEditorPage() {
                       <th className="border-b border-surface-border px-2 pb-1.5 text-right">Selling</th>
                       <th className="border-b border-l border-surface-border px-2 pb-1.5 text-right">Total</th>
                       <th className="border-b border-surface-border px-2 pb-1.5 text-right">Sold</th>
-                      <th className="border-b border-surface-border px-2 pb-1.5 text-right" title="Locked — Total − Sold">Unsold</th>
+                      <th className="border-b border-surface-border px-2 pb-1.5 text-right" title="Total − Sold">Unsold</th>
                     </tr>
                   </thead>
                   <tbody onKeyDown={onSheetKeyDown}>
@@ -900,13 +900,10 @@ export default function DailySaleEditorPage() {
                           </td>
                           <td
                             className={cn(calcCell, c.unsoldQuantity < 0 && 'text-danger-600')}
-                            title="Locked — calculated as Total − Sold"
+                            title="Calculated as Total − Sold"
                             aria-label={`Unsold quantity row ${i + 1} (calculated)`}
                           >
-                            <span className="inline-flex items-center justify-end gap-1">
-                              {editable && <Lock className="size-3 text-ink-soft" aria-hidden />}
-                              {l.total_quantity === '' || l.sold_quantity === '' ? <span className="text-ink-soft">—</span> : qty(c.unsoldQuantity)}
-                            </span>
+                            {l.total_quantity === '' || l.sold_quantity === '' ? <span className="text-ink-soft">—</span> : qty(c.unsoldQuantity)}
                           </td>
                           <td className={cn(calcCell, 'border-l border-surface-border font-medium')}>{peso(c.salesAmount)}</td>
                           <td className="bg-brand-50/40 px-3 py-2.5 text-right font-semibold tabular text-brand-700">{peso(money[i].canteenShare)}</td>
