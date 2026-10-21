@@ -182,27 +182,52 @@ export default function DashboardPage() {
 }
 
 /** All-time cash position — ignores the period picker on purpose. */
+/**
+ * The headline figure of the app. Fixed deep-emerald + gold (like the login
+ * page) rather than theme tokens, so it stands out on both light and dark.
+ */
 function MoneyOnHandCard() {
   const { data, isLoading } = useMoneyOnHand();
+  if (isLoading || !data) return <Skeleton className="h-[176px] rounded-2xl" />;
+  const parts: { label: string; value: number; sign: '+' | '−' | '' }[] = [
+    { label: 'Carry-over', value: data.carryover, sign: '' },
+    { label: 'Gross sales', value: data.gross, sign: '+' },
+    { label: 'Expenses', value: data.expenses, sign: '−' },
+    { label: 'Deficits', value: data.deficit, sign: '−' },
+    ...(data.fundSpent > 0 ? [{ label: 'Fund spending', value: data.fundSpent, sign: '−' as const }] : []),
+  ];
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      {isLoading || !data ? (
-        <Skeleton className="h-[132px] rounded-2xl" />
-      ) : (
-        <StatCard
-          label="Money on hand"
-          value={peso(data.total)}
-          icon={<Banknote />}
-          tone={data.total < 0 ? 'negative' : 'positive'}
-          sub={
-            <>
-              As of today · carry-over {peso(data.carryover)} + gross sales {peso(data.gross)} − expenses {peso(data.expenses)} − deficits {peso(data.deficit)}
-              {data.fundSpent > 0 && <> − fund spending {peso(data.fundSpent)}</>}
-            </>
-          }
-        />
-      )}
-    </div>
+    <section
+      aria-label="Money on hand"
+      className="relative overflow-hidden rounded-2xl border border-[#E9CB32]/40 bg-gradient-to-br from-[#053D1E] via-[#075B2B] to-[#0A7236] p-5 text-white shadow-raised sm:p-6"
+    >
+      <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 size-56 rounded-full bg-[#E9CB32]/10 blur-2xl" />
+      <div className="relative flex flex-wrap items-end justify-between gap-x-8 gap-y-5">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2.5">
+            <span className="flex size-9 items-center justify-center rounded-xl bg-[#E9CB32] text-[#053D1E] [&_svg]:size-[18px]">
+              <Banknote />
+            </span>
+            <span className="text-sm font-semibold uppercase tracking-wider text-[#F4D84A]">Money on hand</span>
+          </div>
+          <div className={`tabular mt-3 text-[38px] font-semibold leading-none tracking-tight sm:text-[44px] ${data.total < 0 ? 'text-[#FFB4AE]' : 'text-white'}`}>
+            {peso(data.total)}
+          </div>
+          <div className="mt-2 text-xs text-white/70">As of today · all recorded cash in and out</div>
+        </div>
+        <dl className="grid w-full grid-cols-2 gap-2 sm:grid-cols-3 lg:w-auto lg:grid-cols-[repeat(5,minmax(0,auto))]">
+          {parts.map((p) => (
+            <div key={p.label} className="rounded-xl bg-white/10 px-3 py-2 ring-1 ring-white/10">
+              <dt className="text-[11px] font-medium uppercase tracking-wide text-white/65">{p.label}</dt>
+              <dd className="tabular mt-0.5 whitespace-nowrap text-sm font-semibold">
+                {p.sign && <span className="mr-0.5 text-[#F4D84A]">{p.sign}</span>}
+                {peso(p.value)}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+    </section>
   );
 }
 

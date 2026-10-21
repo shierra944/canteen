@@ -2,17 +2,18 @@ import { useMemo } from 'react';
 import { useDailySummary, useFinancialTxns, useInventory } from '@/lib/queries';
 import { describePeriod } from '@/lib/periods';
 import { peso, toNumber } from '@/lib/utils';
-import type { DashboardMetrics, FinancialTxn, InventoryItem } from '@/lib/types';
+import type { DashboardMetrics, FinancialTxn, FinTxnType, InventoryItem } from '@/lib/types';
+import { personLabel } from '@/lib/labels';
 import { DetailDialog, type DetailSection } from '@/components/DetailDialog';
 import { StockBadge } from '@/components/ui/badge';
 
 export type DashboardDetailKind = 'gross' | 'expenses' | 'other' | 'net';
 
-const txnColumns = [
+const txnColumns = (type: FinTxnType) => [
   { key: 'transaction_date', header: 'Date', format: 'date' as const },
   { key: 'description', header: 'Item / description' },
   { key: 'category_name', header: 'Category' },
-  { key: 'requested_by', header: 'Requested / given by' },
+  { key: 'requested_by', header: personLabel(type) },
   { key: 'amount', header: 'Amount', format: 'peso' as const },
 ];
 
@@ -143,8 +144,8 @@ function TxnBreakdown({
           { label: 'Entries', value: expenses.length },
         ]}
         sections={[
-          { title: 'Expenses', columns: txnColumns, rows: expenses, totals: { transaction_date: 'Total', amount: total(expenses) }, empty: 'No expenses in this period.' },
-          ...(deficits.length ? [{ title: 'Deficits', columns: txnColumns, rows: deficits, totals: { transaction_date: 'Total', amount: total(deficits) } }] : []),
+          { title: 'Expenses', columns: txnColumns('expense'), rows: expenses, totals: { transaction_date: 'Total', amount: total(expenses) }, empty: 'No expenses in this period.' },
+          ...(deficits.length ? [{ title: 'Deficits', columns: txnColumns('deficit'), rows: deficits, totals: { transaction_date: 'Total', amount: total(deficits) } }] : []),
         ]}
         link={{ to: '/finance', label: 'Open Expenses & Other Sales' }}
       />
@@ -164,8 +165,8 @@ function TxnBreakdown({
         { label: 'Already in daily sales (not counted)', value: peso(total(included)) },
       ]}
       sections={[
-        { title: 'Counted in gross sales', columns: txnColumns, rows: counted, totals: { transaction_date: 'Total', amount: total(counted) }, empty: 'No other sales in this period.' },
-        ...(included.length ? [{ title: 'Already included in daily sales — not counted again', columns: txnColumns, rows: included, totals: { transaction_date: 'Total', amount: total(included) } }] : []),
+        { title: 'Counted in gross sales', columns: txnColumns('sale'), rows: counted, totals: { transaction_date: 'Total', amount: total(counted) }, empty: 'No other sales in this period.' },
+        ...(included.length ? [{ title: 'Already included in daily sales — not counted again', columns: txnColumns('sale'), rows: included, totals: { transaction_date: 'Total', amount: total(included) } }] : []),
       ]}
       link={{ to: '/finance', label: 'Open Expenses & Other Sales' }}
     />

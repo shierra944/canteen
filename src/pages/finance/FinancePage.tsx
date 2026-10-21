@@ -8,7 +8,7 @@ import { rpc, supabase, unwrap } from '@/lib/supabase';
 import { useAction, useCarryovers, useFinCategories, useFinancialTxns } from '@/lib/queries';
 import { describePeriod, resolvePeriod, type Period } from '@/lib/periods';
 import { formatDate, formatDateTime, peso, toNumber, todayPH } from '@/lib/utils';
-import { FIN_TYPE_LABEL } from '@/lib/labels';
+import { FIN_TYPE_LABEL, personLabel } from '@/lib/labels';
 import type { FinancialTxn } from '@/lib/types';
 import { PageHeader } from '@/components/layout/AppShell';
 import { Card, CardBody, CardHeader } from '@/components/ui/card';
@@ -138,7 +138,7 @@ export default function FinancePage() {
       { key: 'description', header: 'Item', width: 28 },
       { key: 'type', header: 'Nature of Item', width: 12 },
       { key: 'category_name', header: 'Category', width: 18 },
-      { key: 'requested_by', header: 'Requested or Given By', width: 20 },
+      { key: 'requested_by', header: personLabel(type), width: 20 },
       { key: 'amount', header: 'Amount', format: 'peso', width: 14 },
       { key: 'status_label', header: 'Status', width: 10 },
     ],
@@ -230,7 +230,7 @@ export default function FinancePage() {
                   </Select>
                 </FilterField>
                 <FilterField label="Person responsible">
-                  <Input value={person} onChange={(e) => { setPerson(e.target.value); setPage(1); }} placeholder="Requested / given by" />
+                  <Input value={person} onChange={(e) => { setPerson(e.target.value); setPage(1); }} placeholder={personLabel(type)} />
                 </FilterField>
                 <FilterField label="Status">
                   <Select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
@@ -304,7 +304,7 @@ export default function FinancePage() {
                         <TH>Item / description</TH>
                         <TH>Nature</TH>
                         <TH>Category</TH>
-                        <TH>Requested / given by</TH>
+                        <TH>{personLabel(type)}</TH>
                         <TH align="right">Amount</TH>
                         <TH>Recorded by</TH>
                         <TH>Status</TH>
@@ -394,7 +394,7 @@ export default function FinancePage() {
               <KeyValue label="Type"><TypeBadge type={detail.transaction_type} /></KeyValue>
               <KeyValue label="Amount">{peso(detail.amount)}</KeyValue>
               <KeyValue label="Category">{detail.category_name ?? '—'}</KeyValue>
-              <KeyValue label="Requested / given by">{detail.requested_by ?? '—'}</KeyValue>
+              <KeyValue label={personLabel(detail.transaction_type)}>{detail.requested_by ?? '—'}</KeyValue>
               <KeyValue label="Status"><StatusBadge status={detail.status} /></KeyValue>
               <KeyValue label="Counted in Other Shares">{detail.transaction_type === 'sale' ? (detail.included_in_daily_sales || detail.status !== 'posted' ? 'No' : 'Yes') : 'n/a'}</KeyValue>
               <KeyValue label="Created">{formatDateTime(detail.created_at)} · {detail.created_by_name ?? '—'}</KeyValue>

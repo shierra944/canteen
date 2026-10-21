@@ -6,6 +6,17 @@ export const FIN_TYPE_LABEL: Record<FinTxnType, string> = {
   deficit: 'Deficit',
 };
 
+/**
+ * Label for the person on a transaction (requested_by). Money going out is
+ * requested / received by someone; other sales are given by someone.
+ */
+export function personLabel(type?: FinTxnType | string | null): string {
+  if (type === 'expense') return 'Requested / received by';
+  if (type === 'sale') return 'Given by';
+  if (type === 'deficit') return 'Person responsible';
+  return 'Requested / received / given by';
+}
+
 export const INV_TYPE_LABEL: Record<InvTxnType, string> = {
   opening: 'Opening stock',
   stock_in: 'Stock received',

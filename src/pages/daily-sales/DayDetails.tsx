@@ -1,6 +1,7 @@
 import { useFinancialTxns } from '@/lib/queries';
 import { formatDate, peso, toNumber } from '@/lib/utils';
-import type { FinancialTxn } from '@/lib/types';
+import type { FinancialTxn, FinTxnType } from '@/lib/types';
+import { personLabel } from '@/lib/labels';
 import { DetailDialog } from '@/components/DetailDialog';
 
 export type DayDetailKind = 'gross' | 'net' | 'collected' | 'remit' | 'actual';
@@ -29,10 +30,10 @@ export interface DayFigures {
   actualMoney: number | null;
 }
 
-const txnCols = [
+const txnCols = (type: FinTxnType) => [
   { key: 'description', header: 'Item / description' },
   { key: 'category_name', header: 'Category' },
-  { key: 'requested_by', header: 'Requested / given by' },
+  { key: 'requested_by', header: personLabel(type) },
   { key: 'amount', header: 'Amount', format: 'peso' as const },
 ];
 
@@ -89,7 +90,7 @@ export function DayDetails({
             totals: { item: 'Total', sales: f.salesAmount, share: f.shareTotal },
             empty: 'No products on the sheet yet.',
           },
-          { title: 'Other shares (Expenses & Other Sales)', columns: txnCols, rows: other, totals: { description: 'Total', amount: sum(other) }, empty: 'No other sales recorded for this day.' },
+          { title: 'Other shares (Expenses & Other Sales)', columns: txnCols('sale'), rows: other, totals: { description: 'Total', amount: sum(other) }, empty: 'No other sales recorded for this day.' },
         ]}
         link={{ to: '/finance', label: 'Open Expenses & Other Sales' }}
       />
@@ -113,8 +114,8 @@ export function DayDetails({
           { label: 'Net sales', value: <span className={f.net < 0 ? 'text-danger-600' : ''}>{peso(f.net)}</span>, strong: true },
         ]}
         sections={[
-          { title: 'Expenses', columns: txnCols, rows: exp, totals: { description: 'Total', amount: sum(exp) }, empty: 'No expenses recorded for this day.' },
-          { title: 'Deficits', columns: txnCols, rows: def, totals: { description: 'Total', amount: sum(def) }, empty: 'No deficits recorded for this day.' },
+          { title: 'Expenses', columns: txnCols('expense'), rows: exp, totals: { description: 'Total', amount: sum(exp) }, empty: 'No expenses recorded for this day.' },
+          { title: 'Deficits', columns: txnCols('deficit'), rows: def, totals: { description: 'Total', amount: sum(def) }, empty: 'No deficits recorded for this day.' },
         ]}
         link={{ to: '/finance', label: 'Open Expenses & Other Sales' }}
       />

@@ -3,7 +3,7 @@ import { rpc } from '@/lib/supabase';
 import { useAction, useFinCategories } from '@/lib/queries';
 import { useAuth } from '@/providers/auth';
 import { useApp } from '@/providers/app';
-import { FIN_TYPE_LABEL } from '@/lib/labels';
+import { FIN_TYPE_LABEL, personLabel } from '@/lib/labels';
 import { cn, todayPH, toNumber, uuid } from '@/lib/utils';
 import type { FinancialTxn, FinTxnType } from '@/lib/types';
 import { Dialog } from '@/components/ui/dialog';
@@ -143,7 +143,7 @@ export function TxnDialog({ open, onOpenChange, txn }: { open: boolean; onOpenCh
             ))}
           </Select>
         </Field>
-        <Field label="Requested by / received from">
+        <Field label={personLabel(f.transaction_type)}>
           <Input value={f.requested_by} onChange={(e) => setF({ ...f, requested_by: e.target.value })} placeholder="e.g. Canteen-in-Charge" />
         </Field>
         <Field label="Remarks" className="sm:col-span-2">
