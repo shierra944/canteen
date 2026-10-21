@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Eye, Plus, ShoppingBasket } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Eye, ShoppingBasket } from 'lucide-react';
 import { useAuth } from '@/providers/auth';
 import { useApp } from '@/providers/app';
 import { useDailySales } from '@/lib/queries';
@@ -17,6 +17,7 @@ import { FilterBar, FilterField } from '@/components/shared';
 import { ExportMenu, PrintableReport } from '@/components/OfficialReport';
 import type { OfficialReport } from '@/lib/export/report';
 import type { DailySale } from '@/lib/types';
+import { NewSaleButton } from './NewSaleButton';
 
 const PAGE = 20;
 
@@ -77,13 +78,7 @@ export default function DailySalesHistoryPage() {
           actions={
             <>
               <ExportMenu report={report} disabled={rows.length === 0} />
-              {can('sales.record') && (
-                <Button asChild>
-                  <Link to="/daily-sales/new">
-                    <Plus /> New daily sales record
-                  </Link>
-                </Button>
-              )}
+              {can('sales.record') && <NewSaleButton />}
             </>
           }
         />
@@ -134,13 +129,7 @@ export default function DailySalesHistoryPage() {
               icon={<ShoppingBasket />}
               title="No daily sales records"
               description={data.length === 0 && !active ? 'Create the first record for a school day.' : 'No records match the filters.'}
-              action={can('sales.record') && (
-                <Button asChild>
-                  <Link to="/daily-sales/new">
-                    <Plus /> New record
-                  </Link>
-                </Button>
-              )}
+              action={can('sales.record') && <NewSaleButton>New record</NewSaleButton>}
             />
           ) : (
             <>

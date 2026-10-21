@@ -8,7 +8,6 @@ import {
   CircleCheck,
   PhilippinePeso,
   PackageX,
-  Plus,
   Receipt,
   Scale,
   TrendingUp,
@@ -22,6 +21,7 @@ import { resolvePeriod, describePeriod, type Period } from '@/lib/periods';
 import { formatDate, peso, qty, toNumber } from '@/lib/utils';
 import { LEDGER_KIND_LABEL } from '@/lib/labels';
 import type { LedgerRow } from '@/lib/types';
+import { NewSaleButton } from '@/pages/daily-sales/NewSaleButton';
 import { PeriodPicker, StatCard, CHART } from '@/components/shared';
 import { Card, CardBody, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -321,11 +321,9 @@ function RecentTransactions() {
         actions={
           <>
             {can('sales.record') && (
-              <Button asChild size="sm" variant="secondary">
-                <Link to="/daily-sales/new">
-                  <Plus /> Daily sales
-                </Link>
-              </Button>
+              <NewSaleButton size="sm" variant="secondary">
+                Daily sales
+              </NewSaleButton>
             )}
             <Button asChild variant="ghost" size="sm">
               <Link to="/transactions">

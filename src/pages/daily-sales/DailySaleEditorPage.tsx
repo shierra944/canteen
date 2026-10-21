@@ -164,9 +164,12 @@ export default function DailySaleEditorPage() {
     loadedVersion.current = data.sale.version;
   }, [data, dirty, consigneeNames]);
 
-  // A new record for a date that already exists → open the existing one
+  // Another record already uses this date (e.g. a past day picked by mistake).
+  // A blank new sheet opens the existing record; otherwise the date is flagged.
+  const [takenBy, setTakenBy] = useState<string | null>(null);
   useEffect(() => {
-    if (!isNew) return;
+    setTakenBy(null);
+    if (!date) return;
     let cancelled = false;
     supabase
       .from('daily_sales')
@@ -174,15 +177,16 @@ export default function DailySaleEditorPage() {
       .eq('sale_date', date)
       .maybeSingle()
       .then(({ data: existing }) => {
-        if (!cancelled && existing && !dirty) {
+        if (cancelled || !existing || existing.id === recordId) return;
+        if (isNew && !dirty) {
           toast.info(`A record for ${formatDate(date, 'long')} already exists — opening it.`);
           navigate(`/daily-sales/${existing.id}`, { replace: true });
-        }
+        } else setTakenBy(existing.id);
       });
     return () => {
       cancelled = true;
     };
-  }, [isNew, date]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [date, recordId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Unsaved-changes protection
   const blocker = useBlocker(({ currentLocation, nextLocation }) => dirty && currentLocation.pathname !== nextLocation.pathname);
@@ -304,7 +308,7 @@ export default function DailySaleEditorPage() {
     if (!it || it.is_consigned) return null;
     return n(l.sold_quantity) > toNumber(it.quantity_on_hand) ? `Only ${qty(it.quantity_on_hand)} ${it.unit} in stock` : null;
   });
-  const hasErrors = lineErrors.some(Boolean) || (actualMoney !== '' && Number(actualMoney) < 0) || date > todayPH();
+  const hasErrors = lineErrors.some(Boolean) || (actualMoney !== '' && Number(actualMoney) < 0) || !date || date > todayPH() || Boolean(takenBy);
   // started rows with inputs still empty (amber cells)
   const emptyInputs = meaningful.reduce(
     (a, l) =>
@@ -716,8 +720,18 @@ export default function DailySaleEditorPage() {
               <div className="text-sm font-semibold">{settings?.school_name ?? 'QUIOT NATIONAL HIGH SCHOOL'}</div>
               <div className="text-xs text-ink-muted">School ID: {settings?.school_id_no ?? '312515'}</div>
             </div>
-            <Field label="Date" required error={date > todayPH() ? 'Date cannot be in the future.' : null}>
+            <Field
+              label="Sales date"
+              required
+              hint={!takenBy && date && date < todayPH() ? 'Recording a past day' : 'Any day up to today'}
+              error={!date ? 'Choose a date.' : date > todayPH() ? 'Date cannot be in the future.' : takenBy ? 'This day already has a record.' : null}
+            >
               <Input type="date" value={date} max={todayPH()} disabled={!editable} onChange={(e) => { setDate(e.target.value); touch(); }} />
+              {takenBy && (
+                <Link to={`/daily-sales/${takenBy}`} className="text-xs font-medium text-brand-700 underline">
+                  Open the {formatDate(date)} record
+                </Link>
+              )}
             </Field>
             <div>
               <div className="text-xs text-ink-muted">School year</div>
