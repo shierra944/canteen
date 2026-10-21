@@ -134,7 +134,7 @@ export function PrintableReport({ report, className }: { report: OfficialReport 
         <tfoot>
           <tr>
             <td className="p-0">
-              <div className="h-[30mm]" />
+              <div className="h-[24mm]" />
             </td>
           </tr>
         </tfoot>
@@ -188,8 +188,8 @@ export function PrintableReport({ report, className }: { report: OfficialReport 
 }
 
 const exact = { printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' } as const;
-// letterhead width on paper (same as the PDF): the template's proportions
-const LETTERHEAD_PRINT_WIDTH = '158mm';
+// letterhead width on paper (same as the PDF): A4 width minus the 1-inch side margins
+const LETTERHEAD_PRINT_WIDTH = '159.2mm';
 
 /** The rendered letterhead (identical to the PDF / Excel one). */
 function useLetterheadImages(settings: SchoolSettings | undefined) {
@@ -207,7 +207,7 @@ function useLetterheadImages(settings: SchoolSettings | undefined) {
 /** Official DepEd letterhead header, exactly as in the school's template. */
 export function LetterheadHeader({ settings }: { settings: SchoolSettings | undefined }) {
   const images = useLetterheadImages(settings);
-  if (!images) return <div style={{ height: '51mm' }} />;
+  if (!images) return <div style={{ height: '38mm' }} />;
   return <img src={images.header.dataUrl} alt="DepEd letterhead" className="mx-auto block" style={{ ...exact, width: LETTERHEAD_PRINT_WIDTH }} />;
 }
 

@@ -51,7 +51,8 @@
 @media print {
   @page {
     size: A4 portrait;
-    margin: 1in;
+    /* letterhead sits half an inch from the top/bottom edge, like a Word header */
+    margin: 0.5in 1in;
   }
   html,
   body {

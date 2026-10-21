@@ -2,7 +2,7 @@
 // carries exactly the same filtered rows and database-calculated totals.
 import type { SchoolSettings, Signatory } from '../types';
 import { downloadBlob, formatDate, peso, qty, toNumber } from '../utils';
-import { renderLetterhead } from './letterhead';
+import { LETTERHEAD_CONTENT_FRACTION, renderLetterhead } from './letterhead';
 
 export type ColFormat = 'text' | 'peso' | 'qty' | 'date' | 'percent';
 
@@ -96,7 +96,8 @@ export async function exportExcel(r: OfficialReport, settings: SchoolSettings | 
 
   // Letterhead image across the sheet width (Excel column width ≈ 7 px per unit)
   const sheetPx = (ws.columns as { width?: number }[]).reduce((a, c) => a + (c.width ?? 10) * 7 + 5, 0);
-  const imgW = Math.min(sheetPx, 900);
+  // rules span the sheet; the content itself is capped so it never gets oversized
+  const imgW = Math.min(sheetPx, 640 / LETTERHEAD_CONTENT_FRACTION);
   const imgX = (sheetPx - imgW) / 2;
   const colAt = (px: number) => {
     // fractional column index for a pixel offset
@@ -224,17 +225,18 @@ export async function exportPdf(r: OfficialReport, settings: SchoolSettings | un
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
-  const margin = MARGIN_IN * 72; // everything, letterhead included, stays inside the margins
+  const margin = MARGIN_IN * 72;
 
   // Letterhead geometry (drawn on every page at the end)
-  const lhW = Math.min(W - margin * 2, 448); // ≈158 mm, as in the school's Word template
-  const lhX = (W - lhW) / 2;
+  // like a Word header/footer: half an inch from the edge, rules spanning the margins
+  const lhW = W - margin * 2;
+  const lhX = margin;
   const headerH = (lhW * letterhead.header.height) / letterhead.header.width;
   const footerH = (lhW * letterhead.footer.height) / letterhead.footer.width;
-  const HEADER_TOP = margin;
-  const FOOTER_BOTTOM = margin;
-  const CONTENT_TOP = HEADER_TOP + headerH + 16;
-  const CONTENT_BOTTOM = H - FOOTER_BOTTOM - footerH - 18;
+  const HEADER_TOP = margin / 2;
+  const FOOTER_BOTTOM = margin / 2;
+  const CONTENT_TOP = Math.max(margin, HEADER_TOP + headerH + 12);
+  const CONTENT_BOTTOM = Math.min(H - margin, H - FOOTER_BOTTOM - footerH - 12);
 
   let y = CONTENT_TOP + 8;
   const newPage = () => {

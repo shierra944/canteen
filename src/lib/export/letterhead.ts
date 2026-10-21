@@ -132,17 +132,24 @@ export interface LetterheadImages {
   footer: { dataUrl: string; width: number; height: number };
 }
 
-const W = 760; // logical width in px (rendered at 3×)
+/** Logical width of the letterhead content in px, rendered at 3×. */
+const BASE_W = 760;
 const SCALE = 3;
+/**
+ * The horizontal rules run margin to margin; the logos and text take this
+ * fraction of that width, so the letterhead stays compact like a normal
+ * document header.
+ */
+export const LETTERHEAD_CONTENT_FRACTION = 0.74;
 
-function canvas(h: number) {
+function canvas(w: number, h: number) {
   const c = document.createElement('canvas');
-  c.width = W * SCALE;
+  c.width = Math.round(w * SCALE);
   c.height = h * SCALE;
   const ctx = c.getContext('2d')!;
   ctx.scale(SCALE, SCALE);
   ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, W, h);
+  ctx.fillRect(0, 0, w, h);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
   return { c, ctx };
@@ -154,8 +161,10 @@ let cache: { key: string; images: LetterheadImages } | null = null;
 export async function renderLetterhead(settings: SchoolSettings | undefined): Promise<LetterheadImages> {
   const t = letterheadContent(settings);
   const blackletter = await ensureFonts();
-  const key = JSON.stringify({ t, blackletter });
+  const key = JSON.stringify({ t, blackletter, f: LETTERHEAD_CONTENT_FRACTION });
   if (cache?.key === key) return cache.images;
+  const W = Math.round(BASE_W / LETTERHEAD_CONTENT_FRACTION); // full rule width
+  const dx = (W - BASE_W) / 2; // centres the footer content
   const [seal, bagong, deped, matatag, qnhs, iLoc, iPhone, iMail, iFb] = await Promise.all([
     loadImage('/logos/deped.png'),
     loadImage('/logos/bagong-pilipinas.jpg'),
@@ -173,7 +182,7 @@ export async function renderLetterhead(settings: SchoolSettings | undefined): Pr
   // school line (= SCHOOL_W): line widths and baselines, seal and rule.
   const HH = 244;
   const SCHOOL_W = 560;
-  const h = canvas(HH);
+  const h = canvas(W, HH);
   drawContain(h.ctx, seal, W / 2 - 40, 2, 80, 80);
   h.ctx.fillStyle = TEXT;
   const bl = (px: number) => `${px}px "${blackletter}", serif`;
@@ -192,9 +201,10 @@ export async function renderLetterhead(settings: SchoolSettings | undefined): Pr
 
   // ---------------------------------------------------------------- footer
   const FH = 104;
-  const f = canvas(FH);
+  const f = canvas(W, FH);
   f.ctx.fillStyle = RULE;
   f.ctx.fillRect(0, 2, W, 1.5);
+  f.ctx.translate(dx, 0);
   // Bagong Pilipinas
   drawContain(f.ctx, bagong, 14, 10, 72, 64);
   f.ctx.fillStyle = '#5B6E8F';
