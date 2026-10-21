@@ -23,6 +23,8 @@ export interface OfficialReport {
   notes?: string[];
   orientation?: 'portrait' | 'landscape';
   filename: string;
+  /** Excel worksheet name (defaults to the title) */
+  sheetName?: string;
   sections?: { title: string; columns: ReportColumn[]; rows: Record<string, unknown>[]; totals?: Record<string, unknown> | null }[];
 }
 
@@ -98,7 +100,7 @@ export async function exportExcel(r: OfficialReport, settings: SchoolSettings | 
   const wb = new ExcelJS.Workbook();
   wb.creator = 'QNHS Canteen System';
   wb.created = new Date();
-  const ws = wb.addWorksheet(r.title.slice(0, 31).replace(/[\\/?*[\]:]/g, ' '), {
+  const ws = wb.addWorksheet((r.sheetName ?? r.title).slice(0, 31).replace(/[\\/?*[\]:]/g, ' '), {
     pageSetup: { paperSize: 9, orientation: r.orientation ?? 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 } },
   });
   const allCols = Math.max(r.columns.length, ...(r.sections?.map((s) => s.columns.length) ?? [0]), 4);

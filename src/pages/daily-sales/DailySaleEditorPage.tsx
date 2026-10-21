@@ -6,6 +6,10 @@ import {
   Copy,
   HandCoins,
   History,
+  Cloud,
+  CloudCheck,
+  CloudOff,
+  Loader2,
   Lock,
   Plus,
   Save,
@@ -99,7 +103,12 @@ const n = (v: string) => (v === '' ? 0 : Number(v));
 const diff = (a: string, b: string) => String(Math.round((Number(a) - Number(b)) * 1000) / 1000);
 
 export default function DailySaleEditorPage() {
-  const { id } = useParams();
+  const { id: routeId } = useParams();
+  // the record id lives in state so the first auto-save can create the record
+  // without remounting the page (and losing the cursor)
+  const [recordId, setRecordId] = useState<string | undefined>(routeId);
+  useEffect(() => setRecordId(routeId), [routeId]);
+  const id = recordId;
   const isNew = !id;
   const [params] = useSearchParams();
   const navigate = useNavigate();
@@ -126,14 +135,30 @@ export default function DailySaleEditorPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [createFor, setCreateFor] = useState<{ key: string; name: string } | null>(null);
   const loadedVersion = useRef<number | null>(null);
+  // auto-save bookkeeping
+  const rev = useRef(0); // bumps on every edit
+  const loadedKey = useRef<string | null>(null);
+  const inFlight = useRef(false);
+  const [saveState, setSaveState] = useState<{ kind: 'idle' | 'saving' | 'saved' | 'error'; at?: Date; message?: string }>({ kind: 'idle' });
+  const [autoBlocked, setAutoBlocked] = useState(false);
+  const [kick, setKick] = useState(0); // re-run auto-save after an in-flight save
+  const focusRow = useRef<number | null>(null);
+  const touch = () => {
+    rev.current += 1;
+    setDirty(true);
+  };
 
   const sale = data?.sale;
   const locked = Boolean(sale && sale.status === 'finalized');
   const editable = !locked && can('sales.record');
 
-  // Load server state (only when not editing locally)
+  // Load server state on first open, or when the record is finalized / reopened.
+  // Our own saves do not reload the rows, so typing is never interrupted.
   useEffect(() => {
-    if (!data || dirty) return;
+    if (!data) return;
+    const key = `${data.sale.id}:${data.sale.status}:${data.sale.correction_count}`;
+    if (loadedKey.current === key || dirty) return;
+    loadedKey.current = key;
     setDate(data.sale.sale_date);
     setActualMoney(data.sale.actual_money === null ? '' : num(data.sale.actual_money));
     setRemarks(data.sale.remarks ?? '');
@@ -176,7 +201,7 @@ export default function DailySaleEditorPage() {
    * Unsold = Total − Sold, or Sold = Total − Unsold when leftovers are counted.
    */
   const edit = (key: string, patch: Partial<Line>) => {
-    setDirty(true);
+    touch();
     setLines((ls) =>
       ls.map((l) => {
         if (l.key !== key) return l;
@@ -209,7 +234,7 @@ export default function DailySaleEditorPage() {
 
   const addRow = () => {
     setLines((ls) => [...ls, newLine()]);
-    setDirty(true);
+    touch();
   };
 
   /** Append lines from History, filling the trailing blank row first. */
@@ -235,7 +260,7 @@ export default function DailySaleEditorPage() {
       };
     });
     setLines((ls) => [...ls.filter((l) => l.item_name.trim() || l.total_quantity || l.sold_quantity || l.unsold_quantity), ...added]);
-    setDirty(true);
+    touch();
     setTab('sheet');
     toast.success(`${added.length} item${added.length === 1 ? '' : 's'} added from history.${skipped ? ` ${skipped} already on the sheet.` : ''} Enter today's quantities.`);
   };
@@ -302,12 +327,17 @@ export default function DailySaleEditorPage() {
   );
   const missingCost = meaningful.filter((l) => !l.is_canteen_stock && l.cost_price === '').length;
 
-  async function save(): Promise<string | null> {
+  async function save(opts: { auto?: boolean } = {}): Promise<string | null> {
     if (hasErrors) {
-      toast.error('Fix the rows marked in red before saving.');
+      if (opts.auto) setSaveState({ kind: 'error', message: 'Not saved — fix the rows marked in red' });
+      else toast.error('Fix the rows marked in red before saving.');
       return null;
     }
-    setBusy('save');
+    if (inFlight.current) return null;
+    inFlight.current = true;
+    const startRev = rev.current;
+    if (!opts.auto) setBusy('save');
+    setSaveState({ kind: 'saving' });
     try {
       const payload = meaningful.map((l) => ({
         inventory_item_id: l.inventory_item_id,
@@ -327,23 +357,68 @@ export default function DailySaleEditorPage() {
         p_lines: payload,
         p_expected_version: isNew ? null : loadedVersion.current,
       });
-      setDirty(false);
       loadedVersion.current = res.version;
+      // changes typed while saving stay dirty and are saved next
+      if (rev.current === startRev) setDirty(false);
+      else setKick((k) => k + 1); // edits made during the save are saved next
+      if (isNew) {
+        loadedKey.current = `${res.id}:draft:0`;
+        setRecordId(res.id);
+        window.history.replaceState(window.history.state, '', `/daily-sales/${res.id}`);
+      }
+      setSaveState({ kind: 'saved', at: new Date() });
       await invalidate([keys.dailySales, keys.alerts, keys.ledger, keys.inventory, keys.consignees]);
       const added = [
         res.new_products ? `${res.new_products} new product${res.new_products === 1 ? '' : 's'}` : '',
         res.new_consignees ? `${res.new_consignees} new consignee${res.new_consignees === 1 ? '' : 's'}` : '',
       ].filter(Boolean);
-      toast.success(added.length ? `Draft saved. ${added.join(' and ')} added to the lists.` : 'Draft saved.');
-      if (isNew) navigate(`/daily-sales/${res.id}`, { replace: true });
+      if (!opts.auto) toast.success(added.length ? `Draft saved. ${added.join(' and ')} added to the lists.` : 'Draft saved.');
+      else if (added.length) toast.success(`${added.join(' and ')} added to the lists.`);
       return res.id;
     } catch (e) {
-      toast.error((e as Error).message);
+      const msg = (e as Error).message;
+      setSaveState({ kind: 'error', message: msg });
+      // another user changed this record: stop auto-saving to avoid overwriting
+      if (/changed by another user/i.test(msg)) setAutoBlocked(true);
+      if (!opts.auto) toast.error(msg);
       return null;
     } finally {
+      inFlight.current = false;
       setBusy(null);
     }
   }
+
+  // Auto-save ~1.5 s after the last change
+  useEffect(() => {
+    if (!editable || !dirty || autoBlocked) return;
+    if (isNew && meaningful.length === 0 && !actualMoney && !remarks.trim()) return;
+    const t = setTimeout(() => void save({ auto: true }), 1500);
+    return () => clearTimeout(t);
+  }, [lines, actualMoney, remarks, date, dirty, editable, autoBlocked, kick]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Enter in a cell adds a row below (or moves to the next blank row)
+  const onSheetKeyDown = (e: React.KeyboardEvent<HTMLTableSectionElement>) => {
+    if (e.key !== 'Enter' || e.defaultPrevented || e.shiftKey || !editable) return;
+    const target = e.target as HTMLElement;
+    if (target.tagName !== 'INPUT') return;
+    const row = Number(target.closest('tr')?.dataset.row);
+    if (Number.isNaN(row)) return;
+    e.preventDefault();
+    const next = lines[row + 1];
+    const blank = (l?: Line) => Boolean(l) && !l!.item_name.trim() && !l!.total_quantity && !l!.sold_quantity && !l!.unsold_quantity;
+    focusRow.current = row + 1;
+    if (blank(next)) {
+      setLines((ls) => [...ls]); // re-render to run the focus effect
+    } else {
+      setLines((ls) => [...ls.slice(0, row + 1), newLine(), ...ls.slice(row + 1)]);
+    }
+  };
+  useEffect(() => {
+    if (focusRow.current === null) return;
+    const r = focusRow.current;
+    focusRow.current = null;
+    (document.querySelector(`tr[data-row="${r}"] input`) as HTMLInputElement | null)?.focus();
+  }, [lines]);
 
   async function finalize(allowNegative = false, reason = '') {
     const saleId = dirty || isNew ? await save() : id!;
@@ -356,7 +431,6 @@ export default function DailySaleEditorPage() {
       await invalidate(FINANCIAL_KEYS);
       await qc.invalidateQueries({ queryKey: keys.dailySales });
       toast.success('Daily sales finalized.');
-      if (isNew) navigate(`/daily-sales/${saleId}`, { replace: true });
     } catch (e) {
       const msg = (e as Error).message;
       setConfirmFinalize(false);
@@ -444,7 +518,8 @@ export default function DailySaleEditorPage() {
     title: 'Daily Canteen Sales',
     period: formatDate(date, 'long'),
     schoolYear: syName,
-    filename: `QNHS-Daily-Sales-${date}`,
+    filename: `Sales-${date}`,
+    sheetName: `Sales-${date}`,
     orientation: 'landscape',
     columns: [
       { key: 'no', header: 'No.', width: 6 },
@@ -535,11 +610,11 @@ export default function DailySaleEditorPage() {
               {sale ? <StatusBadge status={sale.status} /> : <Badge tone="gold">New</Badge>}
               {sale && sale.correction_count > 0 && <Badge tone="blue">Corrected ×{sale.correction_count}</Badge>}
               {sale?.source === 'import' && <Badge>Imported — inventory not affected</Badge>}
-              {dirty && <Badge tone="amber">Unsaved changes</Badge>}
+              {editable && <SaveStatus state={saveState} dirty={dirty} blocked={autoBlocked} />}
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <ExportMenu report={report} disabled={meaningful.length === 0} />
+            <ExportMenu report={report} disabled={meaningful.length === 0} allow={can('sales.record') || can('reports.export')} label="Export" />
             {!isNew && sale?.status === 'draft' && sale.correction_count === 0 && sale.source === 'manual' && can('sales.record') && (
               <Button variant="danger-ghost" onClick={() => setDeleteOpen(true)}>
                 <Trash2 /> Delete draft
@@ -623,7 +698,7 @@ export default function DailySaleEditorPage() {
               <div className="text-xs text-ink-muted">School ID: {settings?.school_id_no ?? '312515'}</div>
             </div>
             <Field label="Date" required error={date > todayPH() ? 'Date cannot be in the future.' : null}>
-              <Input type="date" value={date} max={todayPH()} disabled={!editable} onChange={(e) => { setDate(e.target.value); setDirty(true); }} />
+              <Input type="date" value={date} max={todayPH()} disabled={!editable} onChange={(e) => { setDate(e.target.value); touch(); }} />
             </Field>
             <div>
               <div className="text-xs text-ink-muted">School year</div>
@@ -634,7 +709,7 @@ export default function DailySaleEditorPage() {
               <div className="mt-2 text-sm font-medium">{sale?.created_by_name ?? profile?.full_name}</div>
             </div>
             <Field label="Actual money" hint="Cash counted for the day">
-              <Input type="number" min={0} step="0.01" prefix="₱" value={actualMoney} disabled={!editable} onChange={(e) => { setActualMoney(e.target.value); setDirty(true); }} />
+              <Input type="number" min={0} step="0.01" prefix="₱" value={actualMoney} disabled={!editable} onChange={(e) => { setActualMoney(e.target.value); touch(); }} />
             </Field>
           </CardBody>
         </Card>
@@ -660,6 +735,9 @@ export default function DailySaleEditorPage() {
                 </span>
                 <span className="inline-flex items-center gap-1.5">
                   <span className="inline-block h-3.5 w-5 rounded bg-surface-sunken" /> calculated
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <kbd className="rounded border border-surface-border bg-white px-1 text-[10px] font-semibold">Enter</kbd> new row
                 </span>
               </div>
             )}
@@ -728,7 +806,7 @@ export default function DailySaleEditorPage() {
                       <th className="border-b border-surface-border px-2 pb-1.5 text-right">Unsold</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody onKeyDown={onSheetKeyDown}>
                     {lines.map((l, i) => {
                       const c = calcLine(numericLines[i]);
                       const err = lineErrors[i];
@@ -737,7 +815,7 @@ export default function DailySaleEditorPage() {
                       const started = meaningful.includes(l) && editable;
                       const need = (v: string) => started && v.trim() === '';
                       return (
-                        <tr key={l.key} className={cn('border-b border-surface-border align-top', err && 'bg-danger-50/50')}>
+                        <tr key={l.key} data-row={i} className={cn('border-b border-surface-border align-top', err && 'bg-danger-50/50')}>
                           <td className="px-3 py-2.5 text-xs tabular text-ink-muted">{i + 1}</td>
                           <td className="px-1 py-1">
                             <SheetCombobox
@@ -877,7 +955,7 @@ export default function DailySaleEditorPage() {
                                   aria-label={`Duplicate row ${i + 1}`}
                                   onClick={() => {
                                     setLines((ls) => [...ls.slice(0, i + 1), { ...l, key: uuid() }, ...ls.slice(i + 1)]);
-                                    setDirty(true);
+                                    touch();
                                   }}
                                 >
                                   <Copy />
@@ -889,7 +967,7 @@ export default function DailySaleEditorPage() {
                                   aria-label={`Remove row ${i + 1}`}
                                   onClick={() => {
                                     setLines((ls) => (ls.length === 1 ? [newLine()] : ls.filter((x) => x.key !== l.key)));
-                                    setDirty(true);
+                                    touch();
                                   }}
                                 >
                                   <Trash2 />
@@ -985,7 +1063,7 @@ export default function DailySaleEditorPage() {
           <Card>
             <CardHeader title="Remarks" />
             <CardBody>
-              <Textarea value={remarks} disabled={!editable} onChange={(e) => { setRemarks(e.target.value); setDirty(true); }} placeholder="Notes for this day (optional)" rows={4} />
+              <Textarea value={remarks} disabled={!editable} onChange={(e) => { setRemarks(e.target.value); touch(); }} placeholder="Notes for this day (optional)" rows={4} />
             </CardBody>
           </Card>
         </div>
@@ -1091,5 +1169,38 @@ export default function DailySaleEditorPage() {
       />
       {busy === 'save' && <span className="sr-only">Saving…</span>}
     </>
+  );
+}
+
+function SaveStatus({ state, dirty, blocked }: { state: { kind: 'idle' | 'saving' | 'saved' | 'error'; at?: Date; message?: string }; dirty: boolean; blocked: boolean }) {
+  const time = (d?: Date) => (d ? new Intl.DateTimeFormat('en-PH', { hour: 'numeric', minute: '2-digit' }).format(d) : '');
+  if (state.kind === 'saving')
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs text-ink-muted">
+        <Loader2 className="size-3.5 animate-spin" /> Saving…
+      </span>
+    );
+  if (state.kind === 'error' || blocked)
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-danger-600" role="alert">
+        <CloudOff className="size-3.5" /> {blocked ? 'Changed by another user — reload the page to continue' : state.message}
+      </span>
+    );
+  if (dirty)
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs text-gold-600">
+        <Cloud className="size-3.5" /> Unsaved changes — saving automatically…
+      </span>
+    );
+  if (state.kind === 'saved')
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs text-brand-700">
+        <CloudCheck className="size-3.5" /> All changes saved · {time(state.at)}
+      </span>
+    );
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs text-ink-muted">
+      <CloudCheck className="size-3.5" /> Auto-save on
+    </span>
   );
 }

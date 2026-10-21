@@ -9,14 +9,29 @@ import { Button } from './ui/button';
 import { Menu, MenuContent, MenuItem, MenuTrigger } from './ui/menu';
 
 /** Export / print menu. Disabled unless the user holds reports.export. */
-export function ExportMenu({ report, disabled }: { report: () => OfficialReport; disabled?: boolean }) {
+export function ExportMenu({
+  report,
+  disabled,
+  allow,
+  label = 'Export',
+}: {
+  report: () => OfficialReport;
+  disabled?: boolean;
+  /** override the default reports.export permission check */
+  allow?: boolean;
+  label?: string;
+}) {
   const { settings } = useApp();
   const { can } = useAuth();
   const [busy, setBusy] = useState(false);
-  if (!can('reports.export')) return null;
+  if (!(allow ?? can('reports.export'))) return null;
   const run = async (kind: 'xlsx' | 'pdf' | 'csv' | 'print') => {
     if (kind === 'print') {
+      // "Save as PDF" from the print dialog uses the page title as file name
+      const previous = document.title;
+      document.title = report().filename;
       window.print();
+      document.title = previous;
       return;
     }
     setBusy(true);
@@ -35,7 +50,7 @@ export function ExportMenu({ report, disabled }: { report: () => OfficialReport;
     <Menu>
       <MenuTrigger asChild>
         <Button variant="secondary" loading={busy} disabled={disabled}>
-          <FileDown /> Export
+          <FileDown /> {label}
         </Button>
       </MenuTrigger>
       <MenuContent>
