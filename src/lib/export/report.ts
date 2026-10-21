@@ -104,7 +104,11 @@ export async function exportExcel(r: OfficialReport, settings: SchoolSettings | 
     pageSetup: { paperSize: 9, orientation: r.orientation ?? 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 } },
   });
   const allCols = Math.max(r.columns.length, ...(r.sections?.map((s) => s.columns.length) ?? [0]), 4);
-  ws.columns = Array.from({ length: allCols }, (_, i) => ({ width: r.columns[i]?.width ?? (i === 0 ? 8 : 16) }));
+  ws.columns = Array.from({ length: allCols }, (_, i) => {
+    const w = r.columns[i]?.width ?? (i === 0 ? 8 : 16);
+    // wide enough for "Sep 30, 2026" on one line
+    return { width: r.columns[i]?.format === 'date' ? Math.max(w, 15) : w };
+  });
 
   const [deped, qnhs] = await Promise.all([fetchImageBase64('/logos/deped.png'), fetchImageBase64(settings?.logo_url || '/logos/qnhs.png')]);
   if (deped) ws.addImage(wb.addImage({ base64: deped, extension: 'png' }), { tl: { col: 0.1, row: 0.1 }, ext: { width: 64, height: 64 } });
@@ -153,7 +157,7 @@ export async function exportExcel(r: OfficialReport, settings: SchoolSettings | 
         else cell.value = String(v);
         cell.numFmt = c.format === 'peso' ? '"₱"#,##0.00;[Red]-"₱"#,##0.00' : c.format === 'qty' ? '#,##0.###' : c.format === 'percent' ? '0.0%' : '@';
         cell.font = { name: 'Arial', size: 9, bold };
-        cell.alignment = { horizontal: c.format === 'peso' || c.format === 'qty' || c.format === 'percent' ? 'right' : 'left', vertical: 'middle', wrapText: c.format === 'text' || !c.format };
+        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: c.format !== 'date' && (c.format === 'text' || !c.format) };
         cell.border = border;
         if (bold) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEAF4EC' } };
       });
@@ -263,10 +267,11 @@ export async function exportPdf(r: OfficialReport, settings: SchoolSettings | un
       body: rows.map((row) => cols.map((c) => pdfCell(row[c.key], c.format))),
       foot: totals ? [cols.map((c) => pdfCell(totals[c.key], c.format))] : undefined,
       theme: 'grid',
-      styles: { font: 'helvetica', fontSize: 8, cellPadding: 3.5, lineColor: [190, 200, 193], lineWidth: 0.5, textColor: [32, 41, 35] },
+      styles: { font: 'helvetica', fontSize: 8, cellPadding: 3.5, lineColor: [190, 200, 193], lineWidth: 0.5, textColor: [32, 41, 35], halign: 'center', valign: 'middle' },
       headStyles: { fillColor: [8, 122, 53], textColor: 255, fontStyle: 'bold', halign: 'center', valign: 'middle' },
-      footStyles: { fillColor: [234, 244, 236], textColor: [32, 41, 35], fontStyle: 'bold' },
-      columnStyles: Object.fromEntries(cols.map((c, i) => [i, { halign: c.format === 'peso' || c.format === 'qty' || c.format === 'percent' ? 'right' : 'left' }])),
+      footStyles: { fillColor: [234, 244, 236], textColor: [32, 41, 35], fontStyle: 'bold', halign: 'center', valign: 'middle' },
+      // dates never wrap: the column grows to fit the date on one line
+      columnStyles: Object.fromEntries(cols.map((c, i) => [i, c.format === 'date' ? { halign: 'center', cellWidth: 'wrap' } : { halign: 'center' }])),
       didDrawPage: () => {
         const H = doc.internal.pageSize.getHeight();
         doc.setFontSize(7.5);

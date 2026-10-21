@@ -92,7 +92,7 @@ export function PrintableReport({ report, className }: { report: OfficialReport 
         {rows.map((r, i) => (
           <tr key={i}>
             {cols.map((c) => (
-              <td key={c.key} className={cn('border border-[#9aa59d] px-1.5 py-0.5', (c.format === 'peso' || c.format === 'qty') && 'text-right tabular')}>
+              <td key={c.key} className={cn('border border-[#9aa59d] px-1.5 py-0.5 text-center', (c.format === 'peso' || c.format === 'qty') && 'tabular', c.format === 'date' && 'whitespace-nowrap')}>
                 {formatCell(r[c.key], c.format)}
               </td>
             ))}
@@ -103,7 +103,7 @@ export function PrintableReport({ report, className }: { report: OfficialReport 
         <tfoot>
           <tr>
             {cols.map((c) => (
-              <td key={c.key} className={cn('border border-[#9aa59d] bg-[#EAF4EC] px-1.5 py-1 font-bold', (c.format === 'peso' || c.format === 'qty') && 'text-right tabular')}>
+              <td key={c.key} className={cn('border border-[#9aa59d] bg-[#EAF4EC] px-1.5 py-1 text-center font-bold', (c.format === 'peso' || c.format === 'qty') && 'tabular', c.format === 'date' && 'whitespace-nowrap')}>
                 {formatCell(totals[c.key], c.format)}
               </td>
             ))}
