@@ -316,6 +316,16 @@ export async function fetchMoneyOnHand(asOf: string = todayPH()) {
   return { asOf, total: round2(carryover + gross - expenses - deficit - fundSpent), carryover, gross, expenses, deficit, fundSpent };
 }
 
+/** Money on hand at the end of each date (closing cash), keyed by date. */
+export function useCashAsOf(dates: string[], enabled = true) {
+  const unique = [...new Set(dates)].sort();
+  return useQuery({
+    queryKey: [...keys.reports, 'cash-as-of', unique],
+    enabled: enabled && unique.length > 0,
+    queryFn: async () => Object.fromEntries(await Promise.all(unique.map(async (d) => [d, (await fetchMoneyOnHand(d)).total] as const))) as Record<string, number>,
+  });
+}
+
 export function useMoneyOnHand(enabled = true) {
   const today = todayPH();
   return useQuery({

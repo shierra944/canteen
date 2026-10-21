@@ -95,3 +95,47 @@ export function weekKey(iso: string): string {
 export function monthKey(iso: string): string {
   return iso.slice(0, 7) + '-01';
 }
+
+export function addDays(iso: string, n: number): string {
+  const d = parseISODate(iso);
+  d.setDate(d.getDate() + n);
+  return toISODate(d);
+}
+
+const DEFAULT_SCHOOL_DAYS = [1, 2, 3, 4, 5];
+const isSchoolDay = (iso: string, days: number[]) => days.includes(((parseISODate(iso).getDay() + 6) % 7) + 1);
+
+/** Last school day on or before `iso` (school days are ISO weekdays, 1 = Monday). */
+export function lastSchoolDayOnOrBefore(iso: string, schoolDays: number[] = DEFAULT_SCHOOL_DAYS): string {
+  let d = iso;
+  for (let i = 0; i < 7 && schoolDays.length && !isSchoolDay(d, schoolDays); i++) d = addDays(d, -1);
+  return d;
+}
+
+/** First school day on or after `iso`. */
+export function firstSchoolDayOnOrAfter(iso: string, schoolDays: number[] = DEFAULT_SCHOOL_DAYS): string {
+  let d = iso;
+  for (let i = 0; i < 7 && schoolDays.length && !isSchoolDay(d, schoolDays); i++) d = addDays(d, 1);
+  return d;
+}
+
+/**
+ * Cash position dates for a period, the way the workbook carries cash month
+ * to month: the closing cash of the last school day before the period is
+ * carried over as its opening cash; the period closes on its last school day
+ * (or today, while the period is still running).
+ */
+export function cashPeriodDates(start: string, end: string, schoolDays?: number[], today: string = todayPH()) {
+  const openingAsOf = addDays(start, -1);
+  const inProgress = end >= today;
+  return {
+    /** money is measured at the end of these dates */
+    openingAsOf,
+    closingAsOf: inProgress ? today : end,
+    /** dates shown on reports */
+    openingLabel: lastSchoolDayOnOrBefore(openingAsOf, schoolDays),
+    firstDay: firstSchoolDayOnOrAfter(start, schoolDays),
+    closingLabel: inProgress ? today : lastSchoolDayOnOrBefore(end, schoolDays),
+    inProgress,
+  };
+}

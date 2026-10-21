@@ -5,9 +5,9 @@ import { useAuth } from '@/providers/auth';
 import { useApp } from '@/providers/app';
 import { useQuery } from '@tanstack/react-query';
 import { rpc, supabase, unwrap } from '@/lib/supabase';
-import { useAction, useCarryovers, useFinCategories, useFinancialTxns } from '@/lib/queries';
-import { describePeriod, resolvePeriod, type Period } from '@/lib/periods';
-import { formatDate, formatDateTime, peso, toNumber, todayPH } from '@/lib/utils';
+import { useAction, useCarryovers, useCashAsOf, useFinCategories, useFinancialTxns, useMonthlySummary } from '@/lib/queries';
+import { addDays, cashPeriodDates, describePeriod, firstSchoolDayOnOrAfter, monthKey, monthRange, resolvePeriod, type Period } from '@/lib/periods';
+import { formatDate, formatDateTime, parseISODate, peso, toNumber, todayPH } from '@/lib/utils';
 import { FIN_TYPE_LABEL, personLabel } from '@/lib/labels';
 import type { FinancialTxn } from '@/lib/types';
 import { PageHeader } from '@/components/layout/AppShell';
@@ -431,10 +431,12 @@ function Carryovers() {
   const rev = useAction((reason: string) => rpc('reverse_cash_carryover', { p_id: reverse, p_reason: reason }), { success: 'Carry-over reversed.', onSuccess: () => setReverse(null) });
   const total = data.filter((c) => c.status === 'posted').reduce((a, c) => a + toNumber(c.amount), 0);
   return (
+    <div className="space-y-6">
+    <MonthEndCash />
     <Card>
       <CardHeader
-        title="Cash carry-overs"
-        description='Cash brought into the canteen fund from earlier periods (workbook SUMMARY: "January - cash", "c/o …"). Not sales — used for Remaining Money and the workbook allocation base.'
+        title="Opening balance (manual carry-overs)"
+        description="Only for cash the canteen already had before its records in this app begin (e.g. September's leftover cash). Month-end carry-overs are automatic (above) — do not add them here, or the money is counted twice."
         actions={can('finance.correct') && (
           <Button size="sm" onClick={() => setOpen(true)}>
             <Plus /> Add carry-over
@@ -506,7 +508,7 @@ function Carryovers() {
             <Input type="number" min={0} step="0.01" prefix="₱" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} />
           </Field>
           <Field label="Description" required className="sm:col-span-2">
-            <Input value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} placeholder="e.g. February - cash" />
+            <Input value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} placeholder="e.g. Cash on hand before using the app" />
           </Field>
           <Field label="Remarks" className="sm:col-span-2">
             <Textarea rows={2} value={f.remarks} onChange={(e) => setF({ ...f, remarks: e.target.value })} />
@@ -517,6 +519,71 @@ function Carryovers() {
       <CardBody className="border-t border-surface-border text-xs text-ink-muted">
         <Badge tone="gold">Note</Badge> Only users with the “finance.correct” permission can record or reverse carry-overs.
       </CardBody>
+    </Card>
+    </div>
+  );
+}
+
+/**
+ * Each month's closing cash (its last school day) carried over to the next
+ * month's first school day — calculated from the records, never typed in.
+ */
+function MonthEndCash() {
+  const { settings, activeSchoolYear } = useApp();
+  const today = todayPH();
+  const from = activeSchoolYear?.start_date ?? addDays(today, -365);
+  const { data: months = [], isLoading } = useMonthlySummary(from, today);
+  const { data: carry = [] } = useCarryovers();
+  const monthStarts = [
+    ...new Set([
+      ...months.map((m) => m.month_start),
+      // the month whose closing cash is the opening balance
+      ...carry.filter((c) => c.status === 'posted' && c.entry_date >= from && c.entry_date <= today).map((c) => monthKey(c.entry_date)),
+    ]),
+  ].sort();
+  const rows = monthStarts.map((ms) => {
+    const d = parseISODate(ms);
+    const end = monthRange(d.getFullYear(), d.getMonth()).end;
+    return { ms, ...cashPeriodDates(ms, end, settings?.school_days, today), carriedTo: firstSchoolDayOnOrAfter(addDays(end, 1), settings?.school_days) };
+  });
+  const { data: cash } = useCashAsOf(rows.map((r) => r.closingAsOf), rows.length > 0);
+  const monthName = (ms: string) => new Intl.DateTimeFormat('en-PH', { month: 'long', year: 'numeric' }).format(parseISODate(ms));
+  return (
+    <Card>
+      <CardHeader
+        title="Month-end carry-overs (automatic)"
+        description="Each month's closing cash on its last school day is carried over as the opening cash of the next month's first school day. Calculated from the records — nothing to enter."
+        icon={<PiggyBank />}
+      />
+      {isLoading ? (
+        <TableSkeleton />
+      ) : rows.length === 0 ? (
+        <EmptyState icon={<PiggyBank />} title="No months recorded yet" />
+      ) : (
+        <Table>
+          <THead>
+            <tr>
+              <TH>Month</TH>
+              <TH>Closing date</TH>
+              <TH align="right">Closing cash</TH>
+              <TH>Carried over to</TH>
+            </tr>
+          </THead>
+          <tbody>
+            {rows.map((r) => (
+              <TR key={r.ms}>
+                <TD className="font-medium">{monthName(r.ms)}</TD>
+                <TD className="whitespace-nowrap">
+                  {formatDate(r.closingLabel)}
+                  <div className="text-[11px] text-ink-muted">{r.inProgress ? 'Month in progress — cash so far' : 'Last school day'}</div>
+                </TD>
+                <TD align="right" className="font-semibold text-brand-700">{cash ? peso(cash[r.closingAsOf]) : '…'}</TD>
+                <TD className="whitespace-nowrap">{r.inProgress ? '—' : `${formatDate(r.carriedTo)} (opening cash)`}</TD>
+              </TR>
+            ))}
+          </tbody>
+        </Table>
+      )}
     </Card>
   );
 }
