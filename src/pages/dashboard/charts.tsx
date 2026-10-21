@@ -55,7 +55,7 @@ function emptyPoint(key: string, g: Granularity): SeriesPoint {
 function ChartTooltip({ active, payload, label }: TooltipProps<number, string>) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="min-w-[180px] rounded-xl border border-surface-border bg-white px-3.5 py-2.5 shadow-raised">
+    <div className="min-w-[180px] rounded-xl border border-surface-border bg-surface px-3.5 py-2.5 shadow-raised">
       <div className="mb-1.5 text-xs font-semibold text-ink">{label}</div>
       {payload.map((p) => (
         <div key={p.dataKey as string} className="flex items-center justify-between gap-4 py-0.5 text-xs">

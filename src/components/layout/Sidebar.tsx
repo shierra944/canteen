@@ -23,7 +23,7 @@ export function Sidebar({
   const content = (isMobile: boolean) => {
     const mini = collapsed && !isMobile;
     return (
-      <div className="flex h-full flex-col bg-brand-700 text-white">
+      <div className="flex h-full flex-col bg-sidebar text-white dark:border-r dark:border-gold-300/10">
         {/* Brand */}
         <div className={cn('flex items-center gap-3 border-b border-white/10 px-4 py-5', mini && 'justify-center px-2')}>
           <img src="/logos/qnhs.png" alt="Quiot National High School logo" className={cn('shrink-0 rounded-full bg-white p-0.5 shadow-sm', mini ? 'size-10' : 'size-12')} />
@@ -71,7 +71,7 @@ export function Sidebar({
               <Tooltip.Root key={item.to} delayDuration={150}>
                 <Tooltip.Trigger asChild>{link}</Tooltip.Trigger>
                 <Tooltip.Portal>
-                  <Tooltip.Content side="right" sideOffset={10} className="z-50 rounded-lg bg-ink px-2.5 py-1.5 text-xs font-medium text-white shadow-raised">
+                  <Tooltip.Content side="right" sideOffset={10} className="z-50 rounded-lg bg-[#202923] px-2.5 py-1.5 text-xs font-medium text-white shadow-raised">
                     {item.label}
                   </Tooltip.Content>
                 </Tooltip.Portal>
@@ -97,7 +97,7 @@ export function Sidebar({
         {/* User */}
         <div className={cn('flex items-center gap-3 border-t border-white/10 px-4 py-4', mini && 'flex-col px-2')}>
           <NavLink to="/account" onClick={isMobile ? onCloseMobile : undefined} className="flex min-w-0 flex-1 items-center gap-3" title="My account">
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gold-400 text-[13px] font-bold text-brand-800">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gold-400 text-[13px] font-bold text-[#064A24]">
               {initials(profile?.full_name)}
             </div>
             {!mini && (

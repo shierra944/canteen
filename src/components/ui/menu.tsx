@@ -12,7 +12,7 @@ export function MenuContent({ children, align = 'end', className }: { children: 
         align={align}
         sideOffset={6}
         className={cn(
-          'z-50 min-w-[200px] rounded-xl border border-surface-border bg-white p-1.5 shadow-raised data-[state=open]:animate-scale-in',
+          'z-50 min-w-[200px] rounded-xl border border-surface-border bg-surface p-1.5 shadow-raised data-[state=open]:animate-scale-in',
           className,
         )}
       >

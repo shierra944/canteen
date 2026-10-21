@@ -3,14 +3,14 @@ import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const fieldBase =
-  'w-full rounded-xl border border-surface-border bg-white px-3 text-sm text-ink shadow-[inset_0_1px_1px_rgba(16,40,24,0.03)] transition-colors placeholder:text-ink-soft hover:border-[#cfd9d2] focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:bg-surface-sunken disabled:text-ink-muted aria-[invalid=true]:border-danger-500 aria-[invalid=true]:focus:ring-danger-500/20';
+  'w-full rounded-xl border border-surface-border bg-surface px-3 text-sm text-ink shadow-[inset_0_1px_1px_rgba(16,40,24,0.03)] transition-colors placeholder:text-ink-soft hover:border-surface-strong focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:bg-surface-sunken disabled:text-ink-muted aria-[invalid=true]:border-danger-500 aria-[invalid=true]:focus:ring-danger-500/20';
 
 /** Set by <Field required>; inputs inside it highlight themselves while empty. */
 const FieldContext = createContext<{ required?: boolean }>({});
 
 /** Amber "needs input" treatment for a required control that is still empty. */
 export const needsInputClass =
-  'border-gold-500 bg-gold-50 hover:border-gold-500 focus:bg-white placeholder:text-gold-600/70';
+  'border-gold-500 bg-gold-50 hover:border-gold-500 focus:bg-surface placeholder:text-gold-600/70';
 
 export function isBlank(v: unknown): boolean {
   return v === undefined || v === null || String(v).trim() === '';
@@ -171,10 +171,10 @@ export function Switch({ checked, onChange, disabled, label }: { checked: boolea
       onClick={() => onChange(!checked)}
       className={cn(
         'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50',
-        checked ? 'bg-brand-600' : 'bg-[#cfd9d2]',
+        checked ? 'bg-brand-600' : 'bg-surface-strong',
       )}
     >
-      <span className={cn('inline-block size-5 rounded-full bg-white shadow transition-transform', checked ? 'translate-x-[22px]' : 'translate-x-0.5')} />
+      <span className={cn('inline-block size-5 rounded-full bg-surface shadow transition-transform', checked ? 'translate-x-[22px]' : 'translate-x-0.5')} />
     </button>
   );
 }

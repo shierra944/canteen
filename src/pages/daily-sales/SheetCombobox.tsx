@@ -87,7 +87,7 @@ export function SheetCombobox({
   };
 
   const cellCls = cn(
-    'h-9 w-full min-w-[170px] rounded-lg border border-surface-border bg-white px-2 pr-14 text-sm transition-colors focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:border-transparent disabled:bg-transparent',
+    'h-9 w-full min-w-[170px] rounded-lg border border-surface-border bg-surface px-2 pr-14 text-sm transition-colors focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:border-transparent disabled:bg-transparent',
     needsInput && needsInputClass,
   );
 
@@ -175,7 +175,7 @@ export function SheetCombobox({
           onInteractOutside={(e) => {
             if (e.target === inputRef.current) e.preventDefault();
           }}
-          className="z-50 max-h-[380px] w-[360px] overflow-y-auto rounded-xl border border-surface-border bg-white p-1.5 shadow-raised"
+          className="z-50 max-h-[380px] w-[360px] overflow-y-auto rounded-xl border border-surface-border bg-surface p-1.5 shadow-raised"
         >
           <div ref={listRef}>
           <button

@@ -9,7 +9,7 @@ export function TabsList({ children, className }: { children: ReactNode; classNa
   return (
     <T.List
       className={cn(
-        'scrollbar-thin inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-surface-border bg-white p-1 shadow-card',
+        'scrollbar-thin inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-surface-border bg-surface p-1 shadow-card',
         className,
       )}
     >

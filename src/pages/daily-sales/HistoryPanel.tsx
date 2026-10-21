@@ -117,7 +117,7 @@ export function HistoryPanel({
       <div className="border-b border-surface-border p-4 lg:border-b-0 lg:border-r">
         <div className="mb-3 grid grid-cols-2 gap-1 rounded-lg bg-surface-page p-1 text-xs font-medium">
           {(['day', 'items'] as const).map((m) => (
-            <button key={m} onClick={() => setMode(m)} className={cn('rounded-md px-2 py-1.5', mode === m ? 'bg-white text-brand-700 shadow-sm' : 'text-ink-muted hover:text-ink')}>
+            <button key={m} onClick={() => setMode(m)} className={cn('rounded-md px-2 py-1.5', mode === m ? 'bg-surface text-brand-700 shadow-sm' : 'text-ink-muted hover:text-ink')}>
               {m === 'day' ? 'By day' : 'All recent items'}
             </button>
           ))}

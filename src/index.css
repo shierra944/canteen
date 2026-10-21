@@ -3,6 +3,84 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --c-brand-50: 234 244 236;
+    --c-brand-100: 211 234 217;
+    --c-brand-200: 169 213 181;
+    --c-brand-300: 115 187 137;
+    --c-brand-400: 63 163 95;
+    --c-brand-500: 17 148 71;
+    --c-brand-600: 8 122 53;
+    --c-brand-700: 7 91 43;
+    --c-brand-800: 6 74 36;
+    --c-brand-900: 5 57 28;
+    --c-gold-50: 253 249 227;
+    --c-gold-100: 251 241 192;
+    --c-gold-300: 244 216 74;
+    --c-gold-400: 233 203 50;
+    --c-gold-500: 212 178 30;
+    --c-gold-600: 169 139 18;
+    --c-ink: 32 41 35;
+    --c-ink-muted: 107 117 109;
+    --c-ink-soft: 140 149 142;
+    --c-surface: 255 255 255;
+    --c-surface-page: 247 249 247;
+    --c-surface-sunken: 241 245 242;
+    --c-surface-border: 228 234 229;
+    --c-surface-strong: 207 217 210;
+    --c-sidebar: 7 91 43;
+    --c-danger-50: 253 240 238;
+    --c-danger-500: 217 83 79;
+    --c-danger-600: 184 62 58;
+    --c-danger-700: 147 48 45;
+    --c-warn-50: 255 247 230;
+    --c-warn-500: 229 158 11;
+    --c-warn-600: 183 122 6;
+    --c-warn-700: 138 91 4;
+    --c-info-50: 238 244 251;
+    --c-info-500: 59 120 194;
+    --c-info-600: 44 95 158;
+  }
+  @media screen {
+    .dark {
+      --c-brand-50: 14 42 26;
+      --c-brand-100: 18 56 34;
+      --c-brand-200: 28 78 48;
+      --c-brand-300: 45 122 74;
+      --c-brand-400: 63 163 95;
+      --c-brand-500: 47 180 99;
+      --c-brand-600: 30 154 80;
+      --c-brand-700: 125 216 156;
+      --c-brand-800: 166 230 187;
+      --c-brand-900: 205 242 216;
+      --c-gold-50: 42 35 9;
+      --c-gold-100: 58 48 12;
+      --c-gold-300: 244 216 74;
+      --c-gold-400: 233 203 50;
+      --c-gold-500: 212 178 30;
+      --c-gold-600: 235 203 69;
+      --c-ink: 243 239 226;
+      --c-ink-muted: 169 177 164;
+      --c-ink-soft: 124 135 121;
+      --c-surface: 10 29 19;
+      --c-surface-page: 5 18 11;
+      --c-surface-sunken: 15 37 25;
+      --c-surface-border: 29 54 40;
+      --c-surface-strong: 43 74 56;
+      --c-sidebar: 4 17 10;
+      --c-danger-50: 58 21 19;
+      --c-danger-500: 229 96 91;
+      --c-danger-600: 240 138 133;
+      --c-danger-700: 245 165 161;
+      --c-warn-50: 51 36 10;
+      --c-warn-500: 229 158 11;
+      --c-warn-600: 242 184 75;
+      --c-warn-700: 245 200 110;
+      --c-info-50: 15 34 54;
+      --c-info-500: 79 139 214;
+      --c-info-600: 134 180 236;
+    }
+  }
   html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -15,7 +93,7 @@
     @apply bg-gold-300/60 text-ink;
   }
   :focus-visible {
-    @apply outline-none ring-2 ring-brand-500/60 ring-offset-2 ring-offset-white;
+    @apply outline-none ring-2 ring-brand-500/60 ring-offset-2 ring-offset-surface;
   }
   input[type='number']::-webkit-inner-spin-button,
   input[type='number']::-webkit-outer-spin-button {
@@ -33,7 +111,7 @@
   }
   .scrollbar-thin {
     scrollbar-width: thin;
-    scrollbar-color: #c9d4cc transparent;
+    scrollbar-color: rgb(var(--c-surface-strong)) transparent;
   }
   .card {
     @apply rounded-2xl border border-surface-border bg-white shadow-card;

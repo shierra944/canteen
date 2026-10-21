@@ -90,7 +90,7 @@ export function DetailDialog({
               ) : (
                 <div className="scrollbar-thin max-h-[52vh] overflow-auto rounded-xl border border-surface-border">
                   <table className="w-full border-collapse text-sm">
-                    <thead className="sticky top-0 z-10 bg-[#F7F9F7]">
+                    <thead className="sticky top-0 z-10 bg-surface-page">
                       <tr>
                         {sec.columns.map((c) => (
                           <th
@@ -120,7 +120,7 @@ export function DetailDialog({
                       ))}
                     </tbody>
                     {sec.totals && (
-                      <tfoot className="sticky bottom-0 bg-[#F7F9F7]">
+                      <tfoot className="sticky bottom-0 bg-surface-page">
                         <tr className="border-t-2 border-surface-border font-semibold">
                           {sec.columns.map((c) => {
                             const right = (c.align ?? (c.format === 'peso' || c.format === 'qty' ? 'right' : 'left')) === 'right';

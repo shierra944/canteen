@@ -14,7 +14,7 @@ export function Table({ className, children, stickyHeader, ...props }: HTMLAttri
     <div
       className={cn(
         'scrollbar-thin w-full overflow-x-auto',
-        stickyHeader && 'lg:overflow-visible lg:[&_thead_th]:sticky lg:[&_thead_th]:top-[var(--sticky-top,4rem)] lg:[&_thead_th]:z-10 lg:[&_thead_th]:bg-[#F7F9F7]',
+        stickyHeader && 'lg:overflow-visible lg:[&_thead_th]:sticky lg:[&_thead_th]:top-[var(--sticky-top,4rem)] lg:[&_thead_th]:z-10 lg:[&_thead_th]:bg-surface-page',
       )}
     >
       <table className={cn('w-full border-collapse text-sm', className)} {...props}>
@@ -134,7 +134,7 @@ export function Pagination({
                 onPageSize(Number(e.target.value));
                 onPage(1);
               }}
-              className="h-8 rounded-lg border border-surface-border bg-white px-2 text-[13px] text-ink focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+              className="h-8 rounded-lg border border-surface-border bg-surface px-2 text-[13px] text-ink focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
             >
               {pageSizeOptions.map((o) => (
                 <option key={o} value={o}>

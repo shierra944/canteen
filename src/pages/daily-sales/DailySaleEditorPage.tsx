@@ -578,7 +578,7 @@ export default function DailySaleEditorPage() {
   // spreadsheet input box; amber while a started row still needs the value
   const inputCell = (needs: boolean) =>
     cn(
-      'h-9 w-full min-w-[78px] rounded-lg border border-surface-border bg-white px-2 text-right text-sm tabular shadow-[inset_0_1px_1px_rgba(16,40,24,0.04)] focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:border-transparent disabled:bg-transparent disabled:shadow-none',
+      'h-9 w-full min-w-[78px] rounded-lg border border-surface-border bg-surface px-2 text-right text-sm tabular shadow-[inset_0_1px_1px_rgba(16,40,24,0.04)] focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:border-transparent disabled:bg-transparent disabled:shadow-none',
       needs && needsInputClass,
     );
   const calcCell = 'bg-surface-page/70 px-3 py-2.5 text-right tabular';
@@ -761,7 +761,7 @@ export default function DailySaleEditorPage() {
             {tab === 'sheet' && editable && (
               <div className="flex flex-wrap items-center gap-3 text-xs text-ink-muted">
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="inline-block h-3.5 w-5 rounded border border-surface-border bg-white" /> enter data
+                  <span className="inline-block h-3.5 w-5 rounded border border-surface-border bg-surface" /> enter data
                 </span>
                 <span className="inline-flex items-center gap-1.5">
                   <span className="inline-block h-3.5 w-5 rounded border border-gold-500 bg-gold-50" /> still empty
@@ -770,7 +770,7 @@ export default function DailySaleEditorPage() {
                   <span className="inline-block h-3.5 w-5 rounded bg-surface-sunken" /> calculated
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <kbd className="rounded border border-surface-border bg-white px-1 text-[10px] font-semibold">Enter</kbd> new row
+                  <kbd className="rounded border border-surface-border bg-surface px-1 text-[10px] font-semibold">Enter</kbd> new row
                 </span>
               </div>
             )}

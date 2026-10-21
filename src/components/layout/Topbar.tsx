@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import * as Popover from '@radix-ui/react-popover';
-import { Bell, CalendarDays, ChevronRight, LogOut, Menu as MenuIcon, Search, UserRound } from 'lucide-react';
+import { Bell, CalendarDays, Check, ChevronRight, LogOut, Menu as MenuIcon, Monitor, Moon, Search, Sun, UserRound } from 'lucide-react';
+import { useTheme, type ThemeMode } from '@/providers/theme';
 import { useAuth } from '@/providers/auth';
 import { useApp } from '@/providers/app';
 import { useAlerts } from '@/lib/queries';
@@ -42,7 +43,7 @@ export function Topbar({ onOpenMobile }: { onOpenMobile: () => void }) {
   }, []);
 
   return (
-    <header className="no-print sticky top-0 z-20 border-b border-surface-border bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/75">
+    <header className="no-print sticky top-0 z-20 border-b border-surface-border bg-surface/90 backdrop-blur supports-[backdrop-filter]:bg-surface/75">
       <div className="flex h-16 items-center gap-3 px-4 sm:px-6">
         <button onClick={onOpenMobile} className="rounded-lg p-2 text-ink-muted hover:bg-surface-sunken lg:hidden" aria-label="Open menu">
           <MenuIcon className="size-5" />
@@ -65,11 +66,11 @@ export function Topbar({ onOpenMobile }: { onOpenMobile: () => void }) {
 
         <button
           onClick={() => setSearchOpen(true)}
-          className="hidden h-9 w-64 items-center gap-2 rounded-xl border border-surface-border bg-surface-page px-3 text-sm text-ink-soft transition-colors hover:border-[#cfd9d2] md:flex"
+          className="hidden h-9 w-64 items-center gap-2 rounded-xl border border-surface-border bg-surface-page px-3 text-sm text-ink-soft transition-colors hover:border-surface-strong md:flex"
         >
           <Search className="size-4" />
           <span className="flex-1 text-left">Search items, records…</span>
-          <kbd className="rounded-md border border-surface-border bg-white px-1.5 text-[10px] font-medium text-ink-muted">Ctrl K</kbd>
+          <kbd className="rounded-md border border-surface-border bg-surface px-1.5 text-[10px] font-medium text-ink-muted">Ctrl K</kbd>
         </button>
         <button onClick={() => setSearchOpen(true)} className="rounded-lg p-2 text-ink-muted hover:bg-surface-sunken md:hidden" aria-label="Search">
           <Search className="size-5" />
@@ -88,11 +89,12 @@ export function Topbar({ onOpenMobile }: { onOpenMobile: () => void }) {
             value={workingDate}
             max={todayPH()}
             onChange={(e) => e.target.value && setWorkingDate(e.target.value)}
-            className="h-9 rounded-xl border border-surface-border bg-white pl-8 pr-2 text-[13px] text-ink focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+            className="h-9 rounded-xl border border-surface-border bg-surface pl-8 pr-2 text-[13px] text-ink focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
             aria-label="Working date"
           />
         </label>
 
+        <ThemeToggle />
         <Notifications />
 
         <Menu>
@@ -119,6 +121,34 @@ export function Topbar({ onOpenMobile }: { onOpenMobile: () => void }) {
       </div>
       <GlobalSearch open={searchOpen} onOpenChange={setSearchOpen} />
     </header>
+  );
+}
+
+const THEMES: { mode: ThemeMode; label: string; icon: typeof Sun }[] = [
+  { mode: 'light', label: 'Light', icon: Sun },
+  { mode: 'dark', label: 'Dark', icon: Moon },
+  { mode: 'system', label: 'Match this device', icon: Monitor },
+];
+
+function ThemeToggle() {
+  const { mode, dark, setMode } = useTheme();
+  return (
+    <Menu>
+      <MenuTrigger asChild>
+        <button className="rounded-xl p-2 text-ink-muted transition-colors hover:bg-surface-sunken hover:text-ink" aria-label="Appearance" title="Appearance">
+          {dark ? <Moon className="size-5" /> : <Sun className="size-5" />}
+        </button>
+      </MenuTrigger>
+      <MenuContent>
+        <MenuLabel>Appearance</MenuLabel>
+        {THEMES.map((t) => (
+          <MenuItem key={t.mode} icon={<t.icon />} onSelect={() => setMode(t.mode)}>
+            <span className="flex-1">{t.label}</span>
+            {mode === t.mode && <Check className="ml-3 size-4 text-brand-600" />}
+          </MenuItem>
+        ))}
+      </MenuContent>
+    </Menu>
   );
 }
 
@@ -158,7 +188,7 @@ function Notifications() {
         </button>
       </Popover.Trigger>
       <Popover.Portal>
-        <Popover.Content align="end" sideOffset={8} className="z-50 w-[min(380px,calc(100vw-1.5rem))] rounded-2xl border border-surface-border bg-white shadow-overlay animate-scale-in">
+        <Popover.Content align="end" sideOffset={8} className="z-50 w-[min(380px,calc(100vw-1.5rem))] rounded-2xl border border-surface-border bg-surface shadow-overlay animate-scale-in">
           <div className="flex items-center justify-between border-b border-surface-border px-4 py-3">
             <div className="text-sm font-semibold">Notifications</div>
             {visible.length > 0 && (

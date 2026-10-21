@@ -3,18 +3,18 @@ import { ArrowRight, CalendarRange, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PERIOD_LABELS, resolvePeriod, type Period, type PeriodKey } from '@/lib/periods';
 import { useApp } from '@/providers/app';
+import { isDarkNow } from '@/providers/theme';
 import { ConfirmDialog } from './ui/dialog';
 import { Field, Textarea } from './ui/form';
 
 // Validated chart palette (dataviz validator): sales / expenses / net.
-export const CHART = {
-  sales: '#087A35',
-  expenses: '#B8930C',
-  net: '#3D6A9E',
-  deficit: '#B83E3A',
-  grid: '#E4EAE5',
-  axis: '#6B756D',
-};
+const CHART_LIGHT = { sales: '#087A35', expenses: '#B8930C', net: '#3D6A9E', deficit: '#B83E3A', grid: '#E4EAE5', axis: '#6B756D' };
+// brighter on the dark theme so lines and bars stay legible
+const CHART_DARK = { sales: '#3FBF6E', expenses: '#E0B52A', net: '#7AA7DC', deficit: '#E8706B', grid: '#1D3628', axis: '#A9B1A4' };
+/** Chart colours for the current theme (read at render time). */
+export const CHART = Object.defineProperties({} as typeof CHART_LIGHT, Object.fromEntries(
+  (Object.keys(CHART_LIGHT) as (keyof typeof CHART_LIGHT)[]).map((k) => [k, { enumerable: true, get: () => (isDarkNow() ? CHART_DARK : CHART_LIGHT)[k] }]),
+));
 
 export function StatCard({
   label,
@@ -81,7 +81,7 @@ export function PeriodPicker({
   const { workingDate, activeSchoolYear } = useApp();
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="scrollbar-thin flex max-w-full overflow-x-auto rounded-xl border border-surface-border bg-white p-1 shadow-card">
+      <div className="scrollbar-thin flex max-w-full overflow-x-auto rounded-xl border border-surface-border bg-surface p-1 shadow-card">
         {presets.map((k) => (
           <button
             key={k}
@@ -102,9 +102,9 @@ export function PeriodPicker({
 
 export function DateRange({ start, end, onChange }: { start: string; end: string; onChange: (start: string, end: string) => void }) {
   const cls =
-    'h-9 rounded-lg border border-surface-border bg-white px-2 text-[13px] focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20';
+    'h-9 rounded-lg border border-surface-border bg-surface px-2 text-[13px] focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20';
   return (
-    <div className="flex items-center gap-1.5 rounded-xl border border-surface-border bg-white p-1 pl-2.5 shadow-card">
+    <div className="flex items-center gap-1.5 rounded-xl border border-surface-border bg-surface p-1 pl-2.5 shadow-card">
       <CalendarRange className="size-4 text-ink-muted" />
       <input type="date" aria-label="Start date" className={cls} value={start} max={end} onChange={(e) => e.target.value && onChange(e.target.value, end)} />
       <span className="text-xs text-ink-muted">to</span>

@@ -83,7 +83,7 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
     <D.Root open={open} onOpenChange={onOpenChange}>
       <D.Portal>
         <D.Overlay className="fixed inset-0 z-50 bg-[#0c1f13]/40 backdrop-blur-[2px] animate-fade-in" />
-        <D.Content className="fixed left-1/2 top-[12vh] z-50 w-[calc(100%-1.5rem)] max-w-xl -translate-x-1/2 overflow-hidden rounded-2xl border border-surface-border bg-white shadow-overlay animate-scale-in">
+        <D.Content className="fixed left-1/2 top-[12vh] z-50 w-[calc(100%-1.5rem)] max-w-xl -translate-x-1/2 overflow-hidden rounded-2xl border border-surface-border bg-surface shadow-overlay animate-scale-in">
           <D.Title className="sr-only">Search</D.Title>
           <D.Description className="sr-only">Search inventory items, transactions, daily sales dates and pages.</D.Description>
           <div className="flex items-center gap-3 border-b border-surface-border px-4">

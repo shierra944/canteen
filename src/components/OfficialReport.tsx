@@ -119,7 +119,7 @@ export function PrintableReport({ report, className }: { report: OfficialReport 
   return (
     <div className={cn('print-only text-ink', className)}>
       {/* footer pinned to the bottom of every printed page */}
-      <div className="fixed inset-x-0 bottom-0 bg-white">
+      <div className="fixed inset-x-0 bottom-0 bg-surface">
         <LetterheadFooter settings={settings} />
       </div>
       {/* thead / tfoot repeat on every printed page: header + space for the footer */}

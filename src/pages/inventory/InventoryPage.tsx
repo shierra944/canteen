@@ -207,7 +207,7 @@ export default function InventoryPage() {
         </div>
 
         <Card>
-          <div ref={filterBarRef} className="rounded-t-2xl bg-white lg:sticky lg:top-16 lg:z-20 lg:shadow-[0_1px_0_#E4EAE5]">
+          <div ref={filterBarRef} className="rounded-t-2xl bg-surface lg:sticky lg:top-16 lg:z-20 lg:shadow-[0_1px_0_rgb(var(--c-surface-border))]">
           <FilterBar
             active={filtersActive}
             onClear={() => {

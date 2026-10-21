@@ -7,7 +7,7 @@ import { Button } from './button';
 
 const overlay = 'fixed inset-0 z-50 bg-[#0c1f13]/40 backdrop-blur-[2px] data-[state=open]:animate-fade-in';
 const content =
-  'fixed left-1/2 top-1/2 z-50 flex max-h-[92vh] w-[calc(100%-1.5rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-2xl border border-surface-border bg-white shadow-overlay focus:outline-none data-[state=open]:animate-scale-in';
+  'fixed left-1/2 top-1/2 z-50 flex max-h-[92vh] w-[calc(100%-1.5rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-2xl border border-surface-border bg-surface shadow-overlay focus:outline-none data-[state=open]:animate-scale-in';
 
 export function Dialog({
   open,

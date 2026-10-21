@@ -47,7 +47,7 @@ export function AuditTrail({ entityType, entityId }: { entityType: string; entit
     <ol className="relative space-y-4 border-l border-surface-border pl-5">
       {data.map((a) => (
         <li key={a.id} className="relative">
-          <span className="absolute -left-[25px] top-1 flex size-3 items-center justify-center rounded-full bg-white ring-2 ring-brand-500" />
+          <span className="absolute -left-[25px] top-1 flex size-3 items-center justify-center rounded-full bg-surface ring-2 ring-brand-500" />
           <div className="flex flex-wrap items-baseline gap-x-2 text-sm">
             <span className="font-medium">{titleCase(a.action)}</span>
             <span className="text-xs text-ink-muted">

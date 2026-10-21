@@ -21,7 +21,7 @@ interface Row extends DerivedProduct {
 }
 
 const cell =
-  'h-8 w-full rounded-lg border border-transparent bg-transparent px-2 text-sm hover:border-surface-border focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20';
+  'h-8 w-full rounded-lg border border-transparent bg-transparent px-2 text-sm hover:border-surface-border focus:border-brand-500 focus:bg-surface focus:outline-none focus:ring-2 focus:ring-brand-500/20';
 
 /** Review the products found in the DAILY SALES sheet, then create them in one step. */
 export function ProductListBuilder({ products }: { products: DerivedProduct[] }) {

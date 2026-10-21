@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 export function Skeleton({ className }: { className?: string }) {
   return (
     <div className={cn('relative overflow-hidden rounded-lg bg-surface-sunken', className)}>
-      <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.4s_infinite] bg-gradient-to-r from-transparent via-white/60 to-transparent" />
+      <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.4s_infinite] bg-gradient-to-r from-transparent via-white/60 to-transparent dark:via-white/[0.04]" />
     </div>
   );
 }
