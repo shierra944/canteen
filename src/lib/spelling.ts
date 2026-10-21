@@ -13,8 +13,6 @@ const MISSPELLINGS: Record<string, string> = {
   biscits: 'biscuits',
   sahre: 'share',
   shrae: 'share',
-  incahrge: 'incharge',
-  inchagre: 'incharge',
   plasitc: 'plastic',
   plastci: 'plastic',
   palstic: 'plastic',
@@ -350,9 +348,22 @@ export function fixWord(word: string): string {
   return fix ? matchCase(word, fix) : word;
 }
 
+/**
+ * "in charge" in any form — incharge, Incahrge, in charge, in chrage —
+ * is always written "in-charge" ("charges" and other words are untouched).
+ */
+const IN_CHARGE = /\b(in)[ \t-]*(charge|chrage|cahrge|chagre|chareg|charg)\b/gi;
+const IN_CHARGE_DONE = /\b(in)[ \t-]*(charge|chrage|cahrge|chagre|chareg|charg)(?=[^A-Za-z])/gi;
+
+function inCharge(_m: string, inPart: string, chargePart: string): string {
+  if (inPart === 'IN' && chargePart === chargePart.toUpperCase()) return 'IN-CHARGE';
+  const first = inPart[0] === 'I' ? 'In' : 'in';
+  return `${first}-${chargePart[0] === 'C' ? 'Charge' : 'charge'}`;
+}
+
 /** Correct every known misspelled word in a text, keeping everything else as typed. */
 export function fixSpelling(text: string): string {
-  return text.replace(/[A-Za-z]+/g, fixWord);
+  return text.replace(IN_CHARGE, inCharge).replace(/[A-Za-z]+/g, fixWord);
 }
 
 /**
@@ -360,5 +371,5 @@ export function fixSpelling(text: string): string {
  * so a word is never changed while it is still being typed.
  */
 export function fixCompletedWords(text: string): string {
-  return text.replace(/[A-Za-z]+(?=[^A-Za-z])/g, fixWord);
+  return text.replace(IN_CHARGE_DONE, inCharge).replace(/[A-Za-z]+(?=[^A-Za-z])/g, fixWord);
 }

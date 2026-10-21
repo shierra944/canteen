@@ -20,6 +20,18 @@ describe('automatic spelling correction', () => {
     expect(fixSpelling('diner expanse meting neighbour judgement')).toBe('diner expanse meting neighbour judgement');
   });
 
+  it('writes "in charge" in any form as "in-charge"', () => {
+    expect(fixSpelling('Canteen Incahrge')).toBe('Canteen In-charge');
+    expect(fixSpelling('Canteen in-charge')).toBe('Canteen in-charge');
+    expect(fixSpelling('canteen incharge')).toBe('canteen in-charge');
+    expect(fixSpelling('Canteen In Charge')).toBe('Canteen In-Charge');
+    expect(fixSpelling('canteen in chrage / vendor')).toBe('canteen in-charge / vendor');
+    expect(fixSpelling('CANTEEN INCHARGE')).toBe('CANTEEN IN-CHARGE');
+    expect(fixSpelling('service charges, in charges, main charge')).toBe('service charges, in charges, main charge');
+    expect(fixCompletedWords('in charg')).toBe('in charg');
+    expect(fixCompletedWords('in charge ')).toBe('in-charge ');
+  });
+
   it('leaves a word alone until it is finished', () => {
     expect(fixCompletedWords('recieve')).toBe('recieve');
     expect(fixCompletedWords('recieve ')).toBe('receive ');
