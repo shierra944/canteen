@@ -3,10 +3,17 @@ import { FileDown, FileSpreadsheet, FileText, Printer } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApp } from '@/providers/app';
 import { useAuth } from '@/providers/auth';
-import { exportCsv, exportExcel, exportPdf, formatCell, signatories, type OfficialReport } from '@/lib/export/report';
+import { useQueryClient } from '@tanstack/react-query';
+import { exportCsv, exportExcel, exportPdf, formatCell, moneyOnHandLabel, signatories, type OfficialReport } from '@/lib/export/report';
 import { renderLetterhead, type LetterheadImages } from '@/lib/export/letterhead';
+import { fetchMoneyOnHand, keys, useMoneyOnHand } from '@/lib/queries';
 import type { SchoolSettings } from '@/lib/types';
-import { cn } from '@/lib/utils';
+import { cn, peso, todayPH } from '@/lib/utils';
+
+/** Money on hand is financial data: shown to the same people who can see finance. */
+function canSeeMoneyOnHand(can: (p: string) => boolean) {
+  return can('reports.view') || can('sales.record') || can('finance.record') || can('funds.manage');
+}
 import { Button } from './ui/button';
 import { Menu, MenuContent, MenuItem, MenuTrigger } from './ui/menu';
 
@@ -25,12 +32,21 @@ export function ExportMenu({
 }) {
   const { settings } = useApp();
   const { can } = useAuth();
+  const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
   if (!(allow ?? can('reports.export'))) return null;
+  const showMoney = canSeeMoneyOnHand(can);
+  /** Money on hand as of the moment the report is generated (fresh, not cached). */
+  const money = async () => {
+    if (!showMoney) return null;
+    const today = todayPH();
+    const m = await qc.fetchQuery({ queryKey: [...keys.reports, 'money-on-hand', today], queryFn: () => fetchMoneyOnHand(today), staleTime: 0 });
+    return { amount: m.total, asOf: m.asOf };
+  };
   const run = async (kind: 'xlsx' | 'pdf' | 'csv' | 'print') => {
     if (kind === 'print') {
-      // make sure the letterhead images are ready before the print dialog renders
-      await renderLetterhead(settings);
+      // make sure the letterhead images and money on hand are ready before the print dialog renders
+      await Promise.all([renderLetterhead(settings), money().catch(() => null)]);
       await new Promise((r) => setTimeout(r, 60));
       // "Save as PDF" from the print dialog uses the page title as file name
       const previous = document.title;
@@ -41,7 +57,7 @@ export function ExportMenu({
     }
     setBusy(true);
     try {
-      const r = report();
+      const r = { ...report(), moneyOnHand: await money() };
       if (kind === 'csv') exportCsv(r);
       else if (kind === 'xlsx') await exportExcel(r, settings);
       else await exportPdf(r, settings);
@@ -79,6 +95,9 @@ export function ExportMenu({
 /** Official printed layout (hidden on screen, shown when printing). */
 export function PrintableReport({ report, className }: { report: OfficialReport | null; className?: string }) {
   const { settings } = useApp();
+  const { can } = useAuth();
+  // refreshed by the export menu right before printing
+  const { data: money } = useMoneyOnHand(canSeeMoneyOnHand(can));
   if (!report) return null;
   const sigs = signatories(settings);
   const table = (cols: OfficialReport['columns'], rows: OfficialReport['rows'], totals?: OfficialReport['totals']) => (
@@ -146,6 +165,12 @@ export function PrintableReport({ report, className }: { report: OfficialReport 
         <div className="text-[11px] font-bold uppercase">{report.period}</div>
         {report.schoolYear && <div className="text-[11px]">SY: {report.schoolYear}</div>}
       </div>
+      {money && (
+        <div className="mt-3 flex items-center justify-between border-y-2 border-[#087A35] bg-[#EAF4EC] px-3 py-1.5 text-[12px] font-bold text-[#075B2B]" style={exact}>
+          <span>{moneyOnHandLabel(money)}</span>
+          <span className="tabular">{peso(money.total)}</span>
+        </div>
+      )}
       {report.columns.length > 0 && table(report.columns, report.rows, report.totals)}
       {report.sections?.map((s) => (
         <div key={s.title} className="mt-4" style={{ breakInside: 'avoid' }}>

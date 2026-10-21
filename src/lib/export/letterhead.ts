@@ -164,7 +164,6 @@ export async function renderLetterhead(settings: SchoolSettings | undefined): Pr
   const key = JSON.stringify({ t, blackletter, f: LETTERHEAD_CONTENT_FRACTION });
   if (cache?.key === key) return cache.images;
   const W = Math.round(BASE_W / LETTERHEAD_CONTENT_FRACTION); // full rule width
-  const dx = (W - BASE_W) / 2; // centres the footer content
   const [seal, bagong, deped, matatag, qnhs, iLoc, iPhone, iMail, iFb] = await Promise.all([
     loadImage('/logos/deped.png'),
     loadImage('/logos/bagong-pilipinas.jpg'),
@@ -204,7 +203,7 @@ export async function renderLetterhead(settings: SchoolSettings | undefined): Pr
   const f = canvas(W, FH);
   f.ctx.fillStyle = RULE;
   f.ctx.fillRect(0, 2, W, 1.5);
-  f.ctx.translate(dx, 0);
+  // footer content is left-aligned under the rule (the header stays centred)
   // Bagong Pilipinas
   drawContain(f.ctx, bagong, 14, 10, 72, 64);
   f.ctx.fillStyle = '#5B6E8F';

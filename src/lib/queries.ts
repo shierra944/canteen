@@ -303,23 +303,25 @@ export function useDashboardMetrics(start: string, end: string) {
  * Deficits are cash shortages, so they always reduce cash (whatever the
  * Net Sales setting says).
  */
+export async function fetchMoneyOnHand(asOf: string = todayPH()) {
+  const [totals, spent] = await Promise.all([
+    rpc<PeriodTotals>('report_period_totals', { p_start: '2000-01-01', p_end: asOf }),
+    supabase.from('fund_transactions').select('amount').eq('transaction_type', 'expenditure').eq('status', 'posted').lte('transaction_date', asOf),
+  ]);
+  const fundSpent = -(unwrap(spent) as { amount: number | string }[]).reduce((s, r) => s + toNumber(r.amount), 0);
+  const carryover = toNumber(totals.carryover);
+  const gross = toNumber(totals.gross_sales);
+  const expenses = toNumber(totals.expenses);
+  const deficit = toNumber(totals.deficit);
+  return { asOf, total: round2(carryover + gross - expenses - deficit - fundSpent), carryover, gross, expenses, deficit, fundSpent };
+}
+
 export function useMoneyOnHand(enabled = true) {
   const today = todayPH();
   return useQuery({
     queryKey: [...keys.reports, 'money-on-hand', today],
     enabled,
-    queryFn: async () => {
-      const [totals, spent] = await Promise.all([
-        rpc<PeriodTotals>('report_period_totals', { p_start: '2000-01-01', p_end: today }),
-        supabase.from('fund_transactions').select('amount').eq('transaction_type', 'expenditure').eq('status', 'posted').lte('transaction_date', today),
-      ]);
-      const fundSpent = -(unwrap(spent) as { amount: number | string }[]).reduce((s, r) => s + toNumber(r.amount), 0);
-      const carryover = toNumber(totals.carryover);
-      const gross = toNumber(totals.gross_sales);
-      const expenses = toNumber(totals.expenses);
-      const deficit = toNumber(totals.deficit);
-      return { total: round2(carryover + gross - expenses - deficit - fundSpent), carryover, gross, expenses, deficit, fundSpent };
-    },
+    queryFn: () => fetchMoneyOnHand(today),
   });
 }
 
