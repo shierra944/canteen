@@ -191,17 +191,17 @@ export function LetterheadHeader({ settings }: { settings: SchoolSettings | unde
   const t = letterheadContent(settings);
   return (
     <div className="text-center leading-tight text-[#595959]" style={exact}>
-      <img src="/logos/deped.png" alt="DepEd seal" className="mx-auto h-[17mm] w-[17mm] object-contain" />
-      <div className="mt-1 text-[15px]" style={{ fontFamily: `"${LETTERHEAD_FONT}", "Old English Text MT", serif` }}>
+      <img src="/logos/deped.png" alt="DepEd seal" className="mx-auto h-[13mm] w-[13mm] object-contain" />
+      <div className="mt-1 text-[14px] font-medium" style={{ fontFamily: `"${LETTERHEAD_FONT}", "Old English Text MT", serif` }}>
         {t.republic}
       </div>
-      <div className="text-[21px]" style={{ fontFamily: `"${LETTERHEAD_FONT}", "Old English Text MT", serif` }}>
+      <div className="text-[18px] font-medium" style={{ fontFamily: `"${LETTERHEAD_FONT}", "Old English Text MT", serif` }}>
         {t.department}
       </div>
-      <div className="mt-0.5 font-[Arial,Helvetica,sans-serif] text-[10.5px]">{t.region}</div>
-      <div className="font-[Arial,Helvetica,sans-serif] text-[11px] font-bold">{t.division}</div>
-      <div className="font-[Arial,Helvetica,sans-serif] text-[11px] font-bold">{t.schoolLine}</div>
-      <div className="mt-1.5 h-[2.5px] bg-[#808080]" />
+      <div className="mt-0.5 font-[Arial,Helvetica,sans-serif] text-[9.5px]">{t.region}</div>
+      <div className="font-[Arial,Helvetica,sans-serif] text-[10px] font-bold">{t.division}</div>
+      <div className="font-[Arial,Helvetica,sans-serif] text-[10px] font-bold">{t.schoolLine}</div>
+      <div className="mt-1 h-[2px] bg-[#808080]" />
     </div>
   );
 }

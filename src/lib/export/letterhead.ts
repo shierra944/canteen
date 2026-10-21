@@ -3,7 +3,8 @@
 // the same on any computer, with or without the Old English font installed.
 import type { SchoolSettings } from '../types';
 
-export const LETTERHEAD_FONT = 'UnifrakturMaguntia';
+// a restrained blackletter — formal, but less ornate than Old English Text
+export const LETTERHEAD_FONT = 'Grenze Gotisch';
 const TEXT = '#595959';
 const RULE = '#808080';
 
@@ -66,7 +67,7 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
 async function ensureFonts() {
   try {
     await Promise.all([
-      document.fonts.load(`28px "${LETTERHEAD_FONT}"`),
+      document.fonts.load(`500 22px "${LETTERHEAD_FONT}"`),
       document.fonts.load('bold 15px Arial'),
     ]);
   } catch {
@@ -125,21 +126,21 @@ export async function renderLetterhead(settings: SchoolSettings | undefined): Pr
   ]);
 
   // ---------------------------------------------------------------- header
-  const HH = 196;
+  const HH = 152;
   const h = canvas(HH);
-  drawContain(h.ctx, seal, W / 2 - 34, 2, 68, 68);
+  drawContain(h.ctx, seal, W / 2 - 25, 1, 50, 50);
   h.ctx.fillStyle = TEXT;
-  h.ctx.font = `21px "${LETTERHEAD_FONT}", "Old English Text MT", serif`;
-  h.ctx.fillText(t.republic, W / 2, 96);
-  h.ctx.font = `29px "${LETTERHEAD_FONT}", "Old English Text MT", serif`;
-  h.ctx.fillText(t.department, W / 2, 126);
-  h.ctx.font = '14px Arial, Helvetica, sans-serif';
-  h.ctx.fillText(t.region, W / 2, 146);
-  h.ctx.font = 'bold 15px Arial, Helvetica, sans-serif';
-  h.ctx.fillText(t.division, W / 2, 166);
-  h.ctx.fillText(t.schoolLine, W / 2, 185);
+  h.ctx.font = `500 17px "${LETTERHEAD_FONT}", "Old English Text MT", serif`;
+  h.ctx.fillText(t.republic, W / 2, 70);
+  h.ctx.font = `500 22px "${LETTERHEAD_FONT}", "Old English Text MT", serif`;
+  h.ctx.fillText(t.department, W / 2, 93);
+  h.ctx.font = '12px Arial, Helvetica, sans-serif';
+  h.ctx.fillText(t.region, W / 2, 109);
+  h.ctx.font = 'bold 12.5px Arial, Helvetica, sans-serif';
+  h.ctx.fillText(t.division, W / 2, 125);
+  h.ctx.fillText(t.schoolLine, W / 2, 140);
   h.ctx.fillStyle = RULE;
-  h.ctx.fillRect(0, 191, W, 3.5);
+  h.ctx.fillRect(0, 146, W, 2.5);
 
   // ---------------------------------------------------------------- footer
   const FH = 104;
