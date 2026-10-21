@@ -1,8 +1,9 @@
 import { NavLink } from 'react-router-dom';
-import { ChevronsLeft, ChevronsRight, LogOut, X } from 'lucide-react';
+import { CalendarDays, ChevronsLeft, ChevronsRight, LogOut, X } from 'lucide-react';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { useAuth } from '@/providers/auth';
-import { cn, initials } from '@/lib/utils';
+import { useApp } from '@/providers/app';
+import { cn, initials, todayPH } from '@/lib/utils';
 import { ROLE_LABEL } from '@/lib/labels';
 import { NAV_ITEMS, canSee } from './nav';
 
@@ -18,6 +19,7 @@ export function Sidebar({
   onCloseMobile: () => void;
 }) {
   const { profile, can, signOut } = useAuth();
+  const { activeSchoolYear, workingDate, setWorkingDate } = useApp();
   const items = NAV_ITEMS.filter((i) => canSee(i, can));
 
   const content = (isMobile: boolean) => {
@@ -92,6 +94,27 @@ export function Sidebar({
             {collapsed ? <ChevronsRight className="size-4" /> : <ChevronsLeft className="size-4" />}
             {!collapsed && 'Collapse'}
           </button>
+        )}
+
+        {/* Working date + school year: shown in the top bar on wide screens, here on phones */}
+        {isMobile && (
+          <div className="space-y-2 border-t border-white/10 px-4 py-3">
+            {activeSchoolYear && <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gold-300">SY {activeSchoolYear.name}</div>}
+            <label className="block">
+              <span className="mb-1 block text-[11px] text-white/55">Working date (default for new records)</span>
+              <span className="relative flex items-center">
+                <CalendarDays className="pointer-events-none absolute left-2.5 size-4 text-white/55" />
+                <input
+                  type="date"
+                  value={workingDate}
+                  max={todayPH()}
+                  onChange={(e) => e.target.value && setWorkingDate(e.target.value)}
+                  className="h-10 w-full rounded-xl border border-white/15 bg-white/[0.06] pl-8 pr-2 text-[13px] text-white [color-scheme:dark] focus:border-gold-300/60 focus:outline-none"
+                  aria-label="Working date"
+                />
+              </span>
+            </label>
+          </div>
         )}
 
         {/* User */}

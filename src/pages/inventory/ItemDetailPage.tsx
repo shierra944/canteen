@@ -163,7 +163,7 @@ export default function ItemDetailPage() {
                     >
                       <div className="text-xs text-ink-muted">{label as string}</div>
                       <div className={`tabular mt-1 text-lg font-semibold ${cls}`}>{qty(v)}</div>
-                      <div className="mt-1 text-[11px] font-medium text-brand-600 opacity-0 transition-opacity group-hover:opacity-100">View movements →</div>
+                      <div className="mt-1 text-[11px] font-medium text-brand-600 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100">View movements →</div>
                     </button>
                   ))}
                 </div>

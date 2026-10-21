@@ -13,7 +13,8 @@ export function Table({ className, children, stickyHeader, ...props }: HTMLAttri
   return (
     <div
       className={cn(
-        'scrollbar-thin w-full overflow-x-auto',
+        // relative: keeps absolutely positioned bits (e.g. sr-only headers) inside the scroller on phones
+        'scrollbar-thin relative w-full overflow-x-auto',
         stickyHeader && 'lg:overflow-visible lg:[&_thead_th]:sticky lg:[&_thead_th]:top-[var(--sticky-top,4rem)] lg:[&_thead_th]:z-10 lg:[&_thead_th]:bg-surface-page',
       )}
     >

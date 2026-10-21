@@ -49,7 +49,11 @@ function usePublicSnapshot() {
     let alive = true;
     supabase
       .rpc('public_dashboard_snapshot')
-      .then(({ data, error }) => alive && setState({ data: error ? null : (data as PublicSnapshot), loading: false }));
+      .then(({ data, error }) => {
+        // anything but a proper summary (error, function not installed yet) → show the feature list instead
+        const ok = !error && data && typeof data === 'object' && typeof (data as PublicSnapshot).money_on_hand === 'number' && (data as PublicSnapshot).month;
+        if (alive) setState({ data: ok ? (data as PublicSnapshot) : null, loading: false });
+      });
     return () => {
       alive = false;
     };

@@ -63,7 +63,7 @@ export default function DashboardPage() {
           </h2>
           <p className="mt-1 text-sm text-ink-muted">Here's your canteen's financial and inventory overview.</p>
         </div>
-        <div className="flex flex-col items-end gap-1.5">
+        <div className="flex w-full min-w-0 flex-col items-start gap-1.5 sm:w-auto sm:items-end">
           <PeriodPicker value={period} onChange={setPeriod} />
           <span className="text-xs text-ink-muted">
             {describePeriod(period.start, period.end)}

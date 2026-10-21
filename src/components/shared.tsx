@@ -85,7 +85,8 @@ export function PeriodPicker({
 }) {
   const { workingDate, activeSchoolYear } = useApp();
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    // min-w-0 / max-w-full: on phones the presets scroll sideways instead of widening the page
+    <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
       <div className="scrollbar-thin flex max-w-full overflow-x-auto rounded-xl border border-surface-border bg-surface p-1 shadow-card">
         {presets.map((k) => (
           <button
