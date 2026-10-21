@@ -8,6 +8,7 @@ export default {
       fontFamily: {
         sans: ['Inter', 'ui-sans-serif', 'system-ui', 'Segoe UI', 'sans-serif'],
         mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+        display: ['Fraunces', 'Georgia', 'serif'],
       },
       colors: {
         brand: {
