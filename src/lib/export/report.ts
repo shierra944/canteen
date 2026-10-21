@@ -66,13 +66,13 @@ export function exportCsv(r: OfficialReport) {
     rows.forEach((row) => lines.push(cols.map((c) => esc(raw(row[c.key], c.format))).join(',')));
     if (totals) lines.push(cols.map((c) => esc(raw(totals[c.key], c.format))).join(','));
   };
-  if (r.moneyOnHand) lines.push(`${esc(moneyOnHandLabel(r.moneyOnHand))},${r.moneyOnHand.amount}`, '');
   if (r.columns.length) block(r.columns, r.rows, r.totals);
   r.sections?.forEach((s) => {
     lines.push('');
     lines.push(esc(s.title));
     block(s.columns, s.rows, s.totals);
   });
+  if (r.moneyOnHand) lines.push('', `${esc(moneyOnHandLabel(r.moneyOnHand))},${r.moneyOnHand.amount}`);
   downloadBlob(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }), `${r.filename}.csv`);
 }
 
@@ -138,15 +138,15 @@ export async function exportExcel(r: OfficialReport, settings: SchoolSettings | 
 
   const thin = { style: 'thin' as const, color: { argb: 'FF9AA59D' } };
   const border = { top: thin, left: thin, bottom: thin, right: thin };
-  if (r.moneyOnHand) {
-    // highlighted band right under the title: label | amount
+  const moneyBand = (m: NonNullable<OfficialReport['moneyOnHand']>) => {
+    // highlighted band after the computations: label | amount
     const split = Math.max(1, allCols - 2);
     ws.mergeCells(row, 1, row, split);
     ws.mergeCells(row, split + 1, row, allCols);
     const label = ws.getCell(row, 1);
     const amount = ws.getCell(row, split + 1);
-    label.value = moneyOnHandLabel(r.moneyOnHand);
-    amount.value = r.moneyOnHand.amount;
+    label.value = moneyOnHandLabel(m);
+    amount.value = m.amount;
     amount.numFmt = '"₱"#,##0.00;[Red]-"₱"#,##0.00';
     for (const c of [label, amount]) {
       c.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FF075B2B' } };
@@ -156,8 +156,8 @@ export async function exportExcel(r: OfficialReport, settings: SchoolSettings | 
     label.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
     amount.alignment = { horizontal: 'right', vertical: 'middle', indent: 1 };
     ws.getRow(row).height = 24;
-    row += 2;
-  }
+    row++;
+  };
   const writeTable = (cols: ReportColumn[], rows: Record<string, unknown>[], totals?: Record<string, unknown> | null) => {
     const hr = ws.getRow(row);
     cols.forEach((c, i) => {
@@ -220,6 +220,10 @@ export async function exportExcel(r: OfficialReport, settings: SchoolSettings | 
     ws.getCell(row, 1).font = { name: 'Arial', size: 8, italic: true, color: { argb: 'FF6B756D' } };
     ws.getCell(row, 1).alignment = { wrapText: true };
   });
+  if (r.moneyOnHand) {
+    row += 2;
+    moneyBand(r.moneyOnHand);
+  }
 
   const sigs = signatories(settings);
   if (sigs.length) {
@@ -283,23 +287,6 @@ export async function exportPdf(r: OfficialReport, settings: SchoolSettings | un
     doc.text(`SY: ${r.schoolYear}`, W / 2, y, { align: 'center' });
   }
   y += 14;
-  if (r.moneyOnHand) {
-    // highlighted band right under the title: label left, amount right
-    const bandH = 24;
-    doc.setFillColor(234, 244, 236);
-    doc.setDrawColor(8, 122, 53);
-    doc.setLineWidth(1);
-    doc.rect(margin, y, W - margin * 2, bandH, 'FD');
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.setTextColor(7, 91, 43);
-    doc.text(moneyOnHandLabel(r.moneyOnHand), margin + 10, y + 15.5);
-    const n = r.moneyOnHand.amount;
-    // jsPDF's built-in fonts lack the ₱ glyph
-    doc.text(`PHP ${n < 0 ? '-' : ''}${Math.abs(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, W - margin - 10, y + 15.5, { align: 'right' });
-    doc.setTextColor(32, 41, 35);
-    y += bandH + 14;
-  }
 
   // jsPDF's built-in fonts lack the ₱ glyph; use "PHP" in PDF cells.
   const pdfCell = (v: unknown, f?: ColFormat) => {
@@ -361,6 +348,26 @@ export async function exportPdf(r: OfficialReport, settings: SchoolSettings | un
     doc.text(lines, margin, y);
     y += lines.length * 10;
   });
+
+  if (r.moneyOnHand) {
+    // highlighted band after the computations: label left, amount right
+    const bandH = 24;
+    y += 10;
+    if (y + bandH > CONTENT_BOTTOM) newPage();
+    doc.setFillColor(234, 244, 236);
+    doc.setDrawColor(8, 122, 53);
+    doc.setLineWidth(1);
+    doc.rect(margin, y, W - margin * 2, bandH, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(7, 91, 43);
+    doc.text(moneyOnHandLabel(r.moneyOnHand), margin + 10, y + 15.5);
+    const n = r.moneyOnHand.amount;
+    // jsPDF's built-in fonts lack the ₱ glyph
+    doc.text(`PHP ${n < 0 ? '-' : ''}${Math.abs(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, W - margin - 10, y + 15.5, { align: 'right' });
+    doc.setTextColor(32, 41, 35);
+    y += bandH;
+  }
 
   const sigs = signatories(settings);
   if (sigs.length) {

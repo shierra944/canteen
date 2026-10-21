@@ -165,12 +165,6 @@ export function PrintableReport({ report, className }: { report: OfficialReport 
         <div className="text-[11px] font-bold uppercase">{report.period}</div>
         {report.schoolYear && <div className="text-[11px]">SY: {report.schoolYear}</div>}
       </div>
-      {money && (
-        <div className="mt-3 flex items-center justify-between border-y-2 border-[#087A35] bg-[#EAF4EC] px-3 py-1.5 text-[12px] font-bold text-[#075B2B]" style={exact}>
-          <span>{moneyOnHandLabel(money)}</span>
-          <span className="tabular">{peso(money.total)}</span>
-        </div>
-      )}
       {report.columns.length > 0 && table(report.columns, report.rows, report.totals)}
       {report.sections?.map((s) => (
         <div key={s.title} className="mt-4" style={{ breakInside: 'avoid' }}>
@@ -193,6 +187,13 @@ export function PrintableReport({ report, className }: { report: OfficialReport 
           {n}
         </p>
       ))}
+      {/* after all the computations, just above the signatories */}
+      {money && (
+        <div className="mt-4 flex items-center justify-between border-2 border-[#087A35] bg-[#EAF4EC] px-3 py-1.5 text-[12px] font-bold text-[#075B2B]" style={{ ...exact, breakInside: 'avoid' }}>
+          <span>{moneyOnHandLabel(money)}</span>
+          <span className="tabular">{peso(money.total)}</span>
+        </div>
+      )}
       {sigs.length > 0 && (
         <div className="mt-10 grid gap-8" style={{ gridTemplateColumns: `repeat(${sigs.length}, minmax(0, 1fr))`, breakInside: 'avoid' }}>
           {sigs.map((s) => (
