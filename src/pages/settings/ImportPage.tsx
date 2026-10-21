@@ -10,11 +10,13 @@ import { loadWorkbook, worksheetToGrid } from '@/lib/import/excel-grid';
 import {
   buildBlockDateLookup,
   colLetter,
+  deriveProductList,
   detectSheetKind,
   parseDailySales,
   parseExpensesAndOtherSales,
   parseGenericTransactions,
   parseSummary,
+  type DerivedProduct,
   type GenericMapping,
   type Grid,
   type ParseResult,
@@ -30,6 +32,7 @@ import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Callout, EmptyState, TableSkeleton } from '@/components/ui/feedback';
 import { Table, TD, TH, THead, TR } from '@/components/ui/table';
 import { ConfirmDialog, Dialog } from '@/components/ui/dialog';
+import { ProductListBuilder } from './ProductListBuilder';
 
 const TARGET_LABEL: Record<string, string> = {
   daily_sales: 'Daily sales records',
@@ -76,6 +79,7 @@ function Wizard({ onStaged }: { onStaged: (batchIds: string[]) => void }) {
   const [loading, setLoading] = useState(false);
   const [sheet, setSheet] = useState('');
   const [results, setResults] = useState<ParseResult[] | null>(null);
+  const [products, setProducts] = useState<DerivedProduct[] | null>(null);
   const [mapping, setMapping] = useState<GenericMapping>({ headerRow: 1 });
   const [staging, setStaging] = useState(false);
   const step = !wb ? 0 : !sheet ? 1 : !results ? 2 : 3;
@@ -168,7 +172,7 @@ function Wizard({ onStaged }: { onStaged: (batchIds: string[]) => void }) {
                 return (
                   <button
                     key={ws.id}
-                    onClick={() => { setSheet(ws.name); setResults(null); }}
+                    onClick={() => { setSheet(ws.name); setResults(null); setProducts(null); }}
                     className={cn('rounded-xl border p-3 text-left transition-colors', sheet === ws.name ? 'border-brand-500 bg-brand-50' : 'border-surface-border hover:bg-surface-page')}
                   >
                     <div className="text-sm font-semibold">{ws.name}</div>
@@ -187,7 +191,27 @@ function Wizard({ onStaged }: { onStaged: (batchIds: string[]) => void }) {
               </Callout>
             )}
             {grid && kind === 'generic' && <GenericMapper grid={grid} mapping={mapping} onChange={setMapping} />}
-            {grid && kind !== 'funds' && !results && (
+            {grid && kind === 'daily_sales' && !results && !products && (
+              <div className="grid gap-3 md:grid-cols-2">
+                <button onClick={() => setProducts(deriveProductList(parseDailySales(grid)))} className="rounded-xl border border-surface-border p-4 text-left hover:border-brand-500 hover:bg-brand-50/40">
+                  <div className="text-sm font-semibold">1. Create product list</div>
+                  <div className="mt-1 text-xs leading-relaxed text-ink-muted">Build Inventory from the items, consignees and selling prices in this sheet. Do this first.</div>
+                </button>
+                <button onClick={parse} className="rounded-xl border border-surface-border p-4 text-left hover:border-brand-500 hover:bg-brand-50/40">
+                  <div className="text-sm font-semibold">2. Import historical daily sales</div>
+                  <div className="mt-1 text-xs leading-relaxed text-ink-muted">Bring in each day's sold quantities as finalized records for the reports. Inventory is not changed.</div>
+                </button>
+              </div>
+            )}
+            {grid && kind === 'daily_sales' && products && (
+              <>
+                <Button variant="link" size="sm" onClick={() => setProducts(null)}>
+                  ← Back to import options
+                </Button>
+                <ProductListBuilder products={products} />
+              </>
+            )}
+            {grid && kind !== 'funds' && kind !== 'daily_sales' && !results && (
               <Button onClick={parse}>Preview & validate</Button>
             )}
             {results && (

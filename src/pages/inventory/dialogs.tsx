@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import { rpc, supabase, unwrap } from '@/lib/supabase';
-import { keys, useAction, useCategories, useInventory, useSettings, useSuppliers } from '@/lib/queries';
+import { keys, useAction, useCategories, useConsignees, useInventory, useSettings, useSuppliers } from '@/lib/queries';
 import { useAuth } from '@/providers/auth';
 import { useApp } from '@/providers/app';
 import { ADJUSTMENT_TYPES } from '@/lib/labels';
-import { peso, qty, round2, toNumber, todayPH, uuid } from '@/lib/utils';
+import { cn, peso, qty, round2, toNumber, todayPH, uuid } from '@/lib/utils';
 import type { InventoryItem, InvTxnType } from '@/lib/types';
 import { Dialog } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,8 @@ interface ItemForm {
   expiration_date: string;
   default_consignee: string;
   description: string;
+  is_consigned: boolean;
+  consignee_id: string;
 }
 
 const UNITS = ['piece', 'pack', 'bottle', 'can', 'cup', 'serving', 'box', 'kilo', 'gram', 'liter', 'gallon', 'sachet', 'dozen'];
@@ -36,15 +38,18 @@ export function ItemDialog({
   item,
   onSaved,
   initialName,
+  initialConsigneeId,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   item?: InventoryItem | null;
   onSaved?: (id: string) => void;
   initialName?: string;
+  initialConsigneeId?: string;
 }) {
   const { data: categories = [] } = useCategories();
   const { data: suppliers = [] } = useSuppliers();
+  const { data: consignees = [] } = useConsignees();
   const { data: settings } = useSettings();
   const editing = Boolean(item);
   const blank: ItemForm = useMemo(
@@ -61,8 +66,10 @@ export function ItemDialog({
       expiration_date: item?.expiration_date ?? '',
       default_consignee: item?.default_consignee ?? '',
       description: item?.description ?? '',
+      is_consigned: item ? item.is_consigned : Boolean(initialConsigneeId),
+      consignee_id: item?.consignee_id ?? initialConsigneeId ?? '',
     }),
-    [item, initialName, settings],
+    [item, initialName, initialConsigneeId, settings],
   );
   const [f, setF] = useState<ItemForm>(blank);
   const [errors, setErrors] = useState<Partial<Record<keyof ItemForm, string>>>({});
@@ -78,6 +85,7 @@ export function ItemDialog({
 
   const save = useAction(
     async () => {
+      const c = f.is_consigned;
       const payload = {
         name: f.name.trim(),
         item_code: f.item_code.trim().toUpperCase(),
@@ -85,13 +93,16 @@ export function ItemDialog({
         unit: f.unit.trim(),
         unit_cost: Number(f.unit_cost || 0),
         selling_price: Number(f.selling_price || 0),
-        reorder_level: Number(f.reorder_level || 0),
-        supplier_id: f.supplier_id || null,
-        expiration_date: f.expiration_date || null,
-        default_consignee: f.default_consignee.trim() || null,
+        reorder_level: c ? 0 : Number(f.reorder_level || 0),
+        supplier_id: c ? null : f.supplier_id || null,
+        expiration_date: c ? null : f.expiration_date || null,
+        default_consignee: c ? null : f.default_consignee.trim() || null,
         description: f.description.trim() || null,
+        is_consigned: c,
+        consignee_id: c ? f.consignee_id : null,
       };
       if (editing) {
+        if (!payload.item_code) delete (payload as Partial<typeof payload>).item_code;
         unwrap(await supabase.from('inventory_items').update(payload).eq('id', item!.id).select('id').single());
         return item!.id;
       }
@@ -110,8 +121,11 @@ export function ItemDialog({
     e.preventDefault();
     const err: typeof errors = {};
     if (!f.name.trim()) err.name = 'Item name is required.';
-    if (!f.item_code.trim()) err.item_code = 'Item code is required.';
+    if (editing && !f.item_code.trim()) err.item_code = 'Item code is required.';
     if (!f.unit.trim()) err.unit = 'Unit is required.';
+    if (f.is_consigned && !f.consignee_id) err.consignee_id = 'Choose the consignee.';
+    if (editing && f.is_consigned && !item!.is_consigned && toNumber(item!.quantity_on_hand) !== 0)
+      err.consignee_id = 'This item still has stock on hand. Adjust it to zero before marking it consigned.';
     for (const k of ['unit_cost', 'selling_price', 'reorder_level', 'initial_quantity'] as const) {
       if (f[k] !== '' && (Number.isNaN(Number(f[k])) || Number(f[k]) < 0)) err[k] = 'Must be zero or more.';
     }
@@ -120,18 +134,12 @@ export function ItemDialog({
     if (Object.keys(err).length === 0) save.mutate(undefined);
   }
 
-  function suggestCode() {
-    const cat = categories.find((c) => c.id === f.category_id)?.name ?? 'ITM';
-    const prefix = cat.slice(0, 2).toUpperCase();
-    setF((s) => ({ ...s, item_code: `${prefix}-${String(Date.now()).slice(-5)}` }));
-  }
-
   return (
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
       size="lg"
-      title={editing ? `Edit ${item!.name}` : 'Add inventory item'}
+      title={editing ? `Edit ${item!.name}` : 'Add product'}
       description={editing ? 'Quantity on hand changes only through stock-in, sales and adjustments.' : 'Register a product sold or used by the canteen.'}
       footer={
         <>
@@ -145,18 +153,47 @@ export function ItemDialog({
       }
     >
       <form id="item-form" onSubmit={submit} className="grid gap-4 sm:grid-cols-2" noValidate>
-        <Field label="Item name" required error={errors.name} className="sm:col-span-2">
-          <Input value={f.name} onChange={set('name')} aria-invalid={!!errors.name} autoFocus placeholder="e.g. Bottled water – small" />
-        </Field>
-        <Field label="Item code" required error={errors.item_code} hint="Unique identifier, e.g. DR-001">
-          <div className="flex gap-2">
-            <Input value={f.item_code} onChange={set('item_code')} aria-invalid={!!errors.item_code} className="uppercase" />
-            {!editing && (
-              <Button type="button" variant="secondary" onClick={suggestCode}>
-                Suggest
-              </Button>
-            )}
+        <div className="sm:col-span-2">
+          <div className="mb-1.5 text-[13px] font-medium">Item type</div>
+          <div className="grid gap-2 sm:grid-cols-2" role="radiogroup">
+            {[
+              { v: false, title: 'Canteen stock', desc: 'Bought and owned by the canteen. Stock is tracked and deducted when sold.' },
+              { v: true, title: 'Consigned item', desc: 'Brought in by a consignee. Sold through daily sales; not stock-tracked.' },
+            ].map((o) => (
+              <button
+                key={String(o.v)}
+                type="button"
+                role="radio"
+                aria-checked={f.is_consigned === o.v}
+                onClick={() => setF((s) => ({ ...s, is_consigned: o.v }))}
+                className={cn(
+                  'rounded-xl border px-3.5 py-3 text-left transition-colors',
+                  f.is_consigned === o.v ? 'border-brand-500 bg-brand-50' : 'border-surface-border hover:bg-surface-page',
+                )}
+              >
+                <div className="text-sm font-semibold">{o.title}</div>
+                <div className="mt-0.5 text-xs leading-relaxed text-ink-muted">{o.desc}</div>
+              </button>
+            ))}
           </div>
+        </div>
+        <Field label="Item name" required error={errors.name} className="sm:col-span-2">
+          <Input value={f.name} onChange={set('name')} aria-invalid={!!errors.name} autoFocus placeholder={f.is_consigned ? 'e.g. Hot cake' : 'e.g. Bottled water – small'} />
+        </Field>
+        {f.is_consigned && (
+          <Field label="Consignee" required error={errors.consignee_id} hint="Manage the list under Inventory → Consignees.">
+            <Select value={f.consignee_id} onChange={set('consignee_id')} aria-invalid={!!errors.consignee_id}>
+              <option value="">— Select consignee —</option>
+              {consignees.filter((c) => c.is_active || c.id === f.consignee_id).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
+        <Field label="Item code" required={editing} error={errors.item_code} hint={editing ? 'Unique identifier.' : 'Leave blank to generate one automatically.'}>
+          <Input value={f.item_code} onChange={set('item_code')} aria-invalid={!!errors.item_code} className="uppercase" placeholder={editing ? '' : f.is_consigned ? 'CN-0001' : 'ITM-0001'} />
         </Field>
         <Field label="Category">
           <Select value={f.category_id} onChange={set('category_id')}>
@@ -172,46 +209,58 @@ export function ItemDialog({
           <Input list="units" value={f.unit} onChange={set('unit')} aria-invalid={!!errors.unit} />
           <datalist id="units">{UNITS.map((u) => <option key={u} value={u} />)}</datalist>
         </Field>
-        {!editing && (
-          <Field label="Initial stock quantity" error={errors.initial_quantity} hint="Recorded as the opening entry in the stock ledger.">
-            <Input type="number" min={0} step="any" value={f.initial_quantity} onChange={set('initial_quantity')} />
-          </Field>
-        )}
-        <Field label="Purchase cost per unit" error={errors.unit_cost}>
+        <Field
+          label={f.is_consigned ? 'Cost price (paid to consignee per piece)' : 'Purchase cost per unit'}
+          error={errors.unit_cost}
+          hint={f.is_consigned ? 'Optional. What the consignee receives per piece sold.' : undefined}
+        >
           <Input type="number" min={0} step="0.01" prefix="₱" value={f.unit_cost} onChange={set('unit_cost')} />
         </Field>
         <Field label="Selling price" required error={errors.selling_price}>
           <Input type="number" min={0} step="0.01" prefix="₱" value={f.selling_price} onChange={set('selling_price')} aria-invalid={!!errors.selling_price} />
         </Field>
-        <Field label="Reorder level" error={errors.reorder_level} hint="Low-stock alert at or below this quantity.">
-          <Input type="number" min={0} step="any" value={f.reorder_level} onChange={set('reorder_level')} />
-        </Field>
-        <Field label="Supplier">
-          <Select value={f.supplier_id} onChange={set('supplier_id')}>
-            <option value="">— None —</option>
-            {suppliers.filter((s) => s.is_active || s.id === f.supplier_id).map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        {settings?.expiration_tracking !== false && (
-          <Field label="Expiration date">
-            <Input type="date" value={f.expiration_date} onChange={set('expiration_date')} />
-          </Field>
+        {!f.is_consigned && (
+          <>
+            {!editing && (
+              <Field label="Initial stock quantity" error={errors.initial_quantity} hint="Recorded as the opening entry in the stock ledger.">
+                <Input type="number" min={0} step="any" value={f.initial_quantity} onChange={set('initial_quantity')} />
+              </Field>
+            )}
+            <Field label="Reorder level" error={errors.reorder_level} hint="Low-stock alert at or below this quantity.">
+              <Input type="number" min={0} step="any" value={f.reorder_level} onChange={set('reorder_level')} />
+            </Field>
+            <Field label="Supplier">
+              <Select value={f.supplier_id} onChange={set('supplier_id')}>
+                <option value="">— None —</option>
+                {suppliers.filter((s) => s.is_active || s.id === f.supplier_id).map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            {settings?.expiration_tracking !== false && (
+              <Field label="Expiration date">
+                <Input type="date" value={f.expiration_date} onChange={set('expiration_date')} />
+              </Field>
+            )}
+          </>
         )}
-        <Field label="Default consignee" hint="Pre-fills the Consignee column in daily sales.">
-          <Input value={f.default_consignee} onChange={set('default_consignee')} />
-        </Field>
         <Field label="Description" className="sm:col-span-2">
           <Textarea value={f.description} onChange={set('description')} rows={2} />
         </Field>
-        {!editing && (
-          <div className="sm:col-span-2 flex items-center justify-between rounded-xl bg-brand-50 px-4 py-3 text-sm">
-            <span className="text-ink-muted">Expected stock value</span>
-            <span className="tabular font-semibold text-brand-700">{peso(expectedValue)}</span>
+        {f.is_consigned ? (
+          <div className="sm:col-span-2 flex items-center justify-between rounded-xl bg-info-50 px-4 py-3 text-sm">
+            <span className="text-ink-muted">Margin per piece (selling − cost)</span>
+            <span className="tabular font-semibold text-info-600">{peso(toNumber(f.selling_price) - toNumber(f.unit_cost))}</span>
           </div>
+        ) : (
+          !editing && (
+            <div className="sm:col-span-2 flex items-center justify-between rounded-xl bg-brand-50 px-4 py-3 text-sm">
+              <span className="text-ink-muted">Expected stock value</span>
+              <span className="tabular font-semibold text-brand-700">{peso(expectedValue)}</span>
+            </div>
+          )
         )}
       </form>
     </Dialog>
@@ -299,7 +348,7 @@ export function StockInDialog({ open, onOpenChange, itemId }: { open: boolean; o
             }}
           >
             <option value="">— Select item —</option>
-            {items.map((i) => (
+            {items.filter((i) => !i.is_consigned).map((i) => (
               <option key={i.id} value={i.id}>
                 {i.name} ({i.item_code}) — {qty(i.quantity_on_hand)} {i.unit} on hand
               </option>

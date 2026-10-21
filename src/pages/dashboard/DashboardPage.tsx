@@ -120,7 +120,7 @@ export default function DashboardPage() {
               label="Total Inventory Value"
               value={peso(m.inventory_value)}
               icon={<Wallet />}
-              sub={`${m.items_active} active items · ${m.inventory_valuation === 'weighted_average' ? 'weighted-average cost' : 'latest cost'}`}
+              sub={`${m.items_active} stock items${m.items_consigned ? ` · ${m.items_consigned} consigned (not valued)` : ''} · ${m.inventory_valuation === 'weighted_average' ? 'weighted-average cost' : 'latest cost'}`}
             />
             <Link to="/inventory?status=low_stock" className="contents">
               <StatCard
@@ -186,7 +186,8 @@ export default function DashboardPage() {
 }
 
 function InventoryStatusCard() {
-  const { data: items = [], isLoading } = useInventory();
+  const { data: allItems = [], isLoading } = useInventory();
+  const items = allItems.filter((i) => !i.is_consigned);
   const counts = {
     in_stock: items.filter((i) => i.stock_status === 'in_stock').length,
     low_stock: items.filter((i) => i.stock_status === 'low_stock').length,
@@ -214,7 +215,7 @@ function InventoryStatusCard() {
         {isLoading ? (
           <Skeleton className="h-40" />
         ) : items.length === 0 ? (
-          <EmptyState icon={<Boxes />} title="No inventory items yet" description="Add products to start tracking stock." className="py-6" />
+          <EmptyState icon={<Boxes />} title="No canteen stock items yet" description="Add canteen-owned products to track stock. Consigned items are not stock-tracked." className="py-6" />
         ) : (
           <>
             <div className="grid grid-cols-3 gap-3">

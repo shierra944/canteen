@@ -9,6 +9,7 @@ import type {
   AllocationRun,
   CashCarryover,
   Category,
+  Consignee,
   DailySale,
   DailySaleItem,
   DailySummaryRow,
@@ -35,6 +36,7 @@ export const keys = {
   schoolYears: ['school-years'] as const,
   categories: ['inventory-categories'] as const,
   suppliers: ['suppliers'] as const,
+  consignees: ['consignees'] as const,
   inventory: ['inventory'] as const,
   item: (id: string) => ['inventory', id] as const,
   dailySales: ['daily-sales'] as const,
@@ -121,6 +123,14 @@ export function useSuppliers() {
   return useQuery({
     queryKey: keys.suppliers,
     queryFn: async () => unwrap(await supabase.from('suppliers').select('*').order('name')) as Supplier[],
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useConsignees() {
+  return useQuery({
+    queryKey: keys.consignees,
+    queryFn: async () => unwrap(await supabase.from('consignees').select('*').order('name')) as Consignee[],
     staleTime: 5 * 60_000,
   });
 }

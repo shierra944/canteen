@@ -33,6 +33,7 @@ export const STOCK_STATUS_LABEL: Record<StockStatus, string> = {
   in_stock: 'In Stock',
   low_stock: 'Low Stock',
   out_of_stock: 'Out of Stock',
+  consigned: 'Consigned',
 };
 
 export const BASIS_LABEL: Record<AllocationBasis, string> = {

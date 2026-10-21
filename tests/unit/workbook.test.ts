@@ -63,3 +63,20 @@ describe.skipIf(!hasFile)('CANTEEN REPORT.xlsx', async () => {
     expect(carryovers.rows.map((r) => r.mapped.description)).toEqual(['January - cash', 'February - cash', 'c/o Mam Nechelle']);
   });
 });
+
+describe.skipIf(!hasFile)('product list from DAILY SALES', async () => {
+  const { deriveProductList } = await import('../../src/lib/import/workbook');
+  const wb = new ExcelJS.Workbook();
+  if (hasFile) await wb.xlsx.readFile(file);
+  it('lists each item + consignee once with its latest price', () => {
+    const list = deriveProductList(parseDailySales(worksheetToGrid(wb.getWorksheet('DAILY SALES')!)));
+    const keys = list.map((p) => p.key);
+    expect(new Set(keys).size).toBe(keys.length);
+    const hotcake = list.find((p) => p.name.toLowerCase() === 'hot cake' && p.consignee === 'Judy Ann')!;
+    expect(list.filter((p) => /bottled\s*water/i.test(p.name)).length).toBe(2); // big + small; spellings merged
+    expect(list.find((p) => p.name === 'Biscutis')?.possibleDuplicateOf).toBe('Biscuits');
+    expect(hotcake.selling_price).toBe(10);
+    expect(list.find((p) => p.name === 'Manok')).toMatchObject({ consignee: 'Jean', selling_price: 12, prices: [11, 12] }); // latest price wins
+    console.log(`products: ${list.length}, flagged: ${list.filter((p) => p.possibleDuplicateOf).map((p) => `${p.name}~${p.possibleDuplicateOf}`).join(', ')}`);
+  });
+});

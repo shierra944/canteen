@@ -585,3 +585,71 @@ export function detectSheetKind(g: Grid): 'daily_sales' | 'expenses' | 'summary'
   if (up.includes('FUND')) return 'funds';
   return 'generic';
 }
+
+// ------------------------------------------------------- product list
+export interface DerivedProduct {
+  key: string;
+  name: string;
+  consignee: string | null;
+  selling_price: number;
+  prices: number[];
+  lastSeen: string | null;
+  days: number;
+  /** Spellings merged into this product (e.g. "Bola bola" / "Bola-bola"). */
+  spellings: string[];
+  /** Name of a very similar product from the same consignee (likely a typo). */
+  possibleDuplicateOf: string | null;
+}
+
+const normName = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+function editDistance(a: string, b: string): number {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array<number>(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++)
+    for (let j = 1; j <= b.length; j++) {
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      // a swapped pair of letters ("Biscutis" / "Biscuits") counts as one typo
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+    }
+  return d[a.length][b.length];
+}
+
+/**
+ * One product per item + consignee from the DAILY SALES blocks, using the
+ * price from the most recent day it appears. Price changes are kept so the
+ * administrator can review them.
+ */
+export function deriveProductList(daily: ParseResult): DerivedProduct[] {
+  const map = new Map<string, DerivedProduct>();
+  for (const r of daily.rows) {
+    if (r.status === 'invalid') continue;
+    const name = String(r.mapped.item_name ?? '').trim();
+    const price = r.mapped.unit_price;
+    if (!name || typeof price !== 'number') continue;
+    const consignee = (r.mapped.consignee as string | null)?.trim() || null;
+    const key = `${normName(name)}|${normName(consignee ?? '')}`;
+    const date = (r.mapped.sale_date as string | null) ?? null;
+    const p = map.get(key) ?? { key, name, consignee, selling_price: price, prices: [], lastSeen: null, days: 0, spellings: [], possibleDuplicateOf: null };
+    p.days += 1;
+    if (!p.spellings.includes(name)) p.spellings.push(name);
+    if (!p.prices.includes(price)) p.prices.push(price);
+    if (date && (!p.lastSeen || date >= p.lastSeen)) {
+      p.lastSeen = date;
+      p.selling_price = price;
+      p.name = name;
+    }
+    map.set(key, p);
+  }
+  const list = [...map.values()];
+  // flag near-identical names from the same consignee; keep the one used on more days
+  for (const a of list) {
+    for (const b of list) {
+      if (a === b || a.possibleDuplicateOf || (a.consignee ?? '') !== (b.consignee ?? '')) continue;
+      const [na, nb] = [normName(a.name), normName(b.name)];
+      const close = editDistance(na, nb) <= Math.max(1, Math.floor(Math.min(na.length, nb.length) / 6));
+      if (close && (a.days < b.days || (a.days === b.days && a.name > b.name))) a.possibleDuplicateOf = b.name;
+    }
+  }
+  return list.sort((a, b) => (a.consignee ?? '').localeCompare(b.consignee ?? '') || a.name.localeCompare(b.name));
+}

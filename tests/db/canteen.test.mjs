@@ -323,3 +323,40 @@ test('dashboard metrics and ledger view work for staff', async () => {
   assert.ok(ledger.some((l) => l.kind === 'stock_in'));
   assert.ok(ledger.some((l) => l.kind === 'inventory_spoiled'));
 });
+
+// ------------------------------------------------------- consigned items
+test('consigned items are sold through daily sales but never touch stock', async () => {
+  const [{ import_products: res }] = await db.as(admin, 'select public.import_products($1)', [[
+    { name: 'Hot cake', consignee: 'Judy Ann', selling_price: 10 },
+    { name: 'Manok', consignee: 'Jean', selling_price: 11 },
+    { name: 'Spaghetti', consignee: 'Judy Ann', selling_price: 20 },
+    { name: 'Hot cake', consignee: 'Judy Ann', selling_price: 10 }, // duplicate in list
+  ]]);
+  assert.deepEqual(res, { created: 3, skipped: 1, new_consignees: 2 });
+  const [{ import_products: again }] = await db.as(admin, 'select public.import_products($1)', [[{ name: 'hot cake', consignee: 'judy ann', selling_price: 10 }]]);
+  assert.equal(again.created, 0, 're-running the import never duplicates');
+
+  const [hc] = await db.sql(`select * from public.v_inventory_items where name = 'Hot cake'`);
+  assert.equal(hc.is_consigned, true);
+  assert.equal(hc.consignee_name, 'Judy Ann');
+  assert.equal(hc.stock_status, 'consigned');
+  assert.match(hc.item_code, /^CN-\d{4}$/);
+
+  await rejects(db.as(admin, 'select public.record_stock_in($1)', [{ item_id: hc.id, quantity: 5, unit_cost: 7, date_received: '2026-03-01' }]), /consigned item/);
+  await rejects(db.as(admin, `select public.adjust_stock($1, 'damaged', 1, 'x')`, [hc.id]), /consigned item/);
+  await rejects(db.sql(`update public.inventory_items set is_consigned = false, consignee_id = null where id = $1`, [hc.id]).then(() =>
+    db.sql(`update public.inventory_items set is_consigned = true where id = $1`, [hc.id])), /consignee/);
+  await db.sql(`update public.inventory_items set is_consigned = true, consignee_id = (select id from public.consignees where name = 'Judy Ann') where id = $1`, [hc.id]);
+
+  const [{ save_daily_sale: s }] = await db.as(staff, 'select public.save_daily_sale(null, $1, null, null, $2)', ['2026-03-06', [
+    { inventory_item_id: hc.id, consignee: 'Judy Ann', total_quantity: 37, sold_quantity: 28 },
+  ]]);
+  await db.as(staff, 'select public.finalize_daily_sale($1)', [s.id]);
+  const [line] = await db.sql('select posted_txn_id, sales_amount from public.daily_sale_items where daily_sale_id = $1', [s.id]);
+  assert.equal(line.posted_txn_id, null);
+  assert.equal(num(line.sales_amount), 280);
+  assert.equal(num((await db.sql('select quantity_on_hand from public.inventory_items where id = $1', [hc.id]))[0].quantity_on_hand), 0);
+  const alerts = await db.as(staff, 'select alert_key from public.get_alerts()');
+  assert.ok(!alerts.some((a) => a.alert_key.includes(hc.id)), 'no stock alerts for consigned items');
+  await rejects(db.as(staff, `insert into public.consignees (name) values ('Sneaky')`), /row-level security|permission/);
+});

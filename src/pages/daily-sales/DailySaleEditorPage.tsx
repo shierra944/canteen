@@ -6,7 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/providers/auth';
 import { useApp } from '@/providers/app';
 import { rpc, supabase, unwrap } from '@/lib/supabase';
-import { FINANCIAL_KEYS, keys, useDailySale, useInventory, useInvalidate } from '@/lib/queries';
+import { FINANCIAL_KEYS, keys, useConsignees, useDailySale, useInventory, useInvalidate } from '@/lib/queries';
 import { calcLine, calcTotals, canteenShares } from '@/lib/calc';
 import { cn, formatDate, formatDateTime, peso, qty, toNumber, todayPH, uuid } from '@/lib/utils';
 import type { DailySaleItem, InventoryItem } from '@/lib/types';
@@ -73,6 +73,7 @@ export default function DailySaleEditorPage() {
   const { settings, workingDate, schoolYears } = useApp();
   const { data, isLoading, error, refetch } = useDailySale(id);
   const { data: inventory = [] } = useInventory();
+  const { data: consignees = [] } = useConsignees();
   const invById = useMemo(() => new Map(inventory.map((i) => [i.id, i])), [inventory]);
 
   const [date, setDate] = useState(params.get('date') ?? workingDate);
@@ -149,7 +150,7 @@ export default function DailySaleEditorPage() {
       inventory_item_id: item.id,
       item_name: item.name,
       unit_price: String(toNumber(item.selling_price)),
-      consignee: lines.find((l) => l.key === key)?.consignee || item.default_consignee || '',
+      consignee: item.is_consigned ? item.consignee_name ?? '' : lines.find((l) => l.key === key)?.consignee || item.default_consignee || '',
     });
 
   const numericLines = lines.map((l) => ({
@@ -170,7 +171,7 @@ export default function DailySaleEditorPage() {
   const stockWarnings = lines.map((l) => {
     if (!l.inventory_item_id || locked) return null;
     const it = invById.get(l.inventory_item_id);
-    if (!it) return null;
+    if (!it || it.is_consigned) return null;
     return n(l.sold_quantity) > toNumber(it.quantity_on_hand) ? `Only ${qty(it.quantity_on_hand)} ${it.unit} in stock` : null;
   });
   const hasErrors = lineErrors.some(Boolean) || (actualMoney !== '' && Number(actualMoney) < 0) || date > todayPH();
@@ -493,6 +494,7 @@ export default function DailySaleEditorPage() {
                           onChange={(e) => edit(l.key, { consignee: e.target.value })}
                           className="h-9 w-full min-w-[120px] rounded-lg border border-transparent bg-transparent px-2 text-sm hover:border-surface-border focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:hover:border-transparent"
                           placeholder="—"
+                          list="consignee-options"
                           aria-label={`Consignee row ${i + 1}`}
                         />
                       </td>
@@ -726,6 +728,11 @@ export default function DailySaleEditorPage() {
           if (it && key) pick(key, it as InventoryItem);
         }}
       />
+      <datalist id="consignee-options">
+        {consignees.filter((c) => c.is_active).map((c) => (
+          <option key={c.id} value={c.name} />
+        ))}
+      </datalist>
       {busy === 'save' && <span className="sr-only">Saving…</span>}
     </>
   );

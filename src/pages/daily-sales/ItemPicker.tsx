@@ -34,7 +34,7 @@ export function ItemPicker({
   const matches = useMemo(() => {
     const s = value.trim().toLowerCase();
     return items
-      .filter((i) => i.is_active && (!s || i.name.toLowerCase().includes(s) || i.item_code.toLowerCase().includes(s)))
+      .filter((i) => i.is_active && (!s || i.name.toLowerCase().includes(s) || i.item_code.toLowerCase().includes(s) || (i.consignee_name ?? '').toLowerCase().includes(s)))
       .slice(0, 8);
   }, [items, value]);
   useEffect(() => setActive(0), [value]);
@@ -102,7 +102,7 @@ export function ItemPicker({
               <span className="min-w-0">
                 <span className="block truncate text-sm font-medium">{i.name}</span>
                 <span className="text-xs text-ink-muted">
-                  {i.item_code} · {qty(i.quantity_on_hand)} {i.unit} on hand
+                  {i.item_code} · {i.is_consigned ? `Consigned · ${i.consignee_name ?? ''}` : `${qty(i.quantity_on_hand)} ${i.unit} on hand`}
                 </span>
               </span>
               <span className="tabular text-sm font-medium text-brand-700">{peso(i.selling_price)}</span>

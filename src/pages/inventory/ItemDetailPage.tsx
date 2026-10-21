@@ -60,12 +60,12 @@ export default function ItemDetailPage() {
               <Pencil /> Edit
             </Button>
           )}
-          {can('inventory.adjust') && item.is_active && (
+          {can('inventory.adjust') && item.is_active && !item.is_consigned && (
             <Button variant="secondary" onClick={() => setAdjust(true)}>
               <SlidersHorizontal /> Adjust
             </Button>
           )}
-          {can('inventory.stock_in') && item.is_active && (
+          {can('inventory.stock_in') && item.is_active && !item.is_consigned && (
             <Button onClick={() => setStockIn(true)}>
               <PackagePlus /> Stock-in
             </Button>
@@ -73,10 +73,21 @@ export default function ItemDetailPage() {
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_1.4fr]">
+      <div className={item.is_consigned ? 'grid gap-6' : 'grid gap-6 lg:grid-cols-[1fr_1.4fr]'}>
         <Card>
           <CardHeader title="Item details" />
           <CardBody>
+            {item.is_consigned ? (
+              <div className="mb-5 rounded-xl bg-info-50 p-4 text-sm">
+                <div className="font-semibold text-info-600">Consigned item — {item.consignee_name}</div>
+                <div className="mt-1 text-ink-muted">Sold through daily sales; not counted as canteen stock, so there is no stock-in, adjustment or stock alert.</div>
+                <div className="mt-3 flex gap-6">
+                  <span>Selling {peso(item.selling_price)}</span>
+                  <span>Cost {peso(item.unit_cost)}</span>
+                  <span className="font-semibold">Margin {peso(toNumber(item.selling_price) - toNumber(item.unit_cost))}</span>
+                </div>
+              </div>
+            ) : (
             <div className="mb-5 grid grid-cols-2 gap-4 rounded-xl bg-brand-50 p-4">
               <div>
                 <div className="text-xs text-ink-muted">Quantity on hand</div>
@@ -89,6 +100,7 @@ export default function ItemDetailPage() {
                 <div className="tabular text-2xl font-semibold text-brand-700">{peso(item.stock_value)}</div>
               </div>
             </div>
+            )}
             <dl className="grid grid-cols-2 gap-x-4 gap-y-4">
               <KeyValue label="Category">{item.category_name ?? '—'}</KeyValue>
               <KeyValue label="Unit">{item.unit}</KeyValue>
@@ -96,7 +108,7 @@ export default function ItemDetailPage() {
               <KeyValue label="Selling price">{peso(item.selling_price)}</KeyValue>
               <KeyValue label="Reorder level">{qty(item.reorder_level)}</KeyValue>
               <KeyValue label="Supplier">{item.supplier_name ?? '—'}</KeyValue>
-              <KeyValue label="Default consignee">{item.default_consignee ?? '—'}</KeyValue>
+              <KeyValue label={item.is_consigned ? 'Consignee' : 'Default consignee'}>{item.consignee_name ?? item.default_consignee ?? '—'}</KeyValue>
               <KeyValue label="Expiration date">{formatDate(item.expiration_date)}</KeyValue>
               {item.description && (
                 <KeyValue label="Description" className="col-span-2">
@@ -107,6 +119,7 @@ export default function ItemDetailPage() {
           </CardBody>
         </Card>
 
+        {!item.is_consigned && (
         <Card>
           <CardHeader title="Movement summary" description="Opening + received − sold − losses ± adjustments = closing" actions={<PeriodPicker value={period} onChange={setPeriod} presets={['this_week', 'this_month', 'this_quarter', 'school_year', 'custom']} />} />
           <CardBody>
@@ -144,8 +157,10 @@ export default function ItemDetailPage() {
             )}
           </CardBody>
         </Card>
+        )}
       </div>
 
+      {!item.is_consigned && (
       <Card>
         <CardHeader title="Stock ledger" description="Permanent record of every stock movement" icon={<History />} />
         {txns.length === 0 ? (
@@ -196,6 +211,7 @@ export default function ItemDetailPage() {
           </Table>
         )}
       </Card>
+      )}
 
       {receipts.length > 0 && (
         <Card>

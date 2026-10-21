@@ -6,7 +6,7 @@ export type AppRole = 'admin' | 'staff' | 'viewer';
 export type FinTxnType = 'sale' | 'expense' | 'deficit';
 export type RecordStatus = 'posted' | 'reversed';
 export type DailySaleStatus = 'draft' | 'finalized';
-export type StockStatus = 'in_stock' | 'low_stock' | 'out_of_stock';
+export type StockStatus = 'in_stock' | 'low_stock' | 'out_of_stock' | 'consigned';
 export type InvTxnType =
   | 'opening'
   | 'stock_in'
@@ -110,6 +110,9 @@ export interface InventoryItem {
   supplier_id: string | null;
   supplier_name: string | null;
   default_consignee: string | null;
+  is_consigned: boolean;
+  consignee_id: string | null;
+  consignee_name: string | null;
   expiration_date: string | null;
   description: string | null;
   stock_value: Num;
@@ -117,6 +120,16 @@ export interface InventoryItem {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface Consignee {
+  id: string;
+  name: string;
+  contact_number: string | null;
+  address: string | null;
+  remarks: string | null;
+  is_active: boolean;
+  created_at: string;
 }
 
 export interface InventoryTxn {
@@ -297,6 +310,7 @@ export interface DashboardMetrics extends PeriodTotals {
   inventory_value: Num;
   inventory_valuation: string;
   items_active: number;
+  items_consigned: number;
   items_in_stock: number;
   items_low_stock: number;
   items_out_of_stock: number;

@@ -30,7 +30,7 @@ export function Badge({ tone = 'gray', children, className, dot }: { tone?: Badg
 }
 
 export function StockBadge({ status }: { status: StockStatus }) {
-  const tone: BadgeTone = status === 'in_stock' ? 'green' : status === 'low_stock' ? 'amber' : 'red';
+  const tone: BadgeTone = status === 'in_stock' ? 'green' : status === 'low_stock' ? 'amber' : status === 'consigned' ? 'blue' : 'red';
   return (
     <Badge tone={tone} dot>
       {STOCK_STATUS_LABEL[status]}
