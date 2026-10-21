@@ -53,7 +53,6 @@ interface Line {
   total_quantity: string;
   unit_price: string;
   sold_quantity: string;
-  unsold_quantity: string;
   share_quantity: string;
   shareTouched: boolean;
   cost_price: string;
@@ -70,7 +69,6 @@ const newLine = (): Line => ({
   total_quantity: '',
   unit_price: '',
   sold_quantity: '',
-  unsold_quantity: '',
   share_quantity: '',
   shareTouched: false,
   cost_price: '',
@@ -90,7 +88,6 @@ function fromItems(items: DailySaleItem[], consigneeNames: Set<string>): Line[] 
     total_quantity: num(i.total_quantity),
     unit_price: num(i.unit_price),
     sold_quantity: num(i.sold_quantity),
-    unsold_quantity: num(i.unsold_quantity),
     share_quantity: num(i.share_quantity),
     shareTouched: toNumber(i.share_quantity) !== toNumber(i.sold_quantity),
     cost_price: i.cost_price === null ? '' : num(i.cost_price),
@@ -99,8 +96,6 @@ function fromItems(items: DailySaleItem[], consigneeNames: Set<string>): Line[] 
 }
 
 const n = (v: string) => (v === '' ? 0 : Number(v));
-// avoid float noise like 0.30000000000000004 in derived quantities
-const diff = (a: string, b: string) => String(Math.round((Number(a) - Number(b)) * 1000) / 1000);
 
 export default function DailySaleEditorPage() {
   const { id: routeId } = useParams();
@@ -196,24 +191,13 @@ export default function DailySaleEditorPage() {
     return () => window.removeEventListener('beforeunload', h);
   }, [dirty]);
 
-  /**
-   * Edit a row. Total, Sold and Unsold stay consistent:
-   * Unsold = Total − Sold, or Sold = Total − Unsold when leftovers are counted.
-   */
+  /** Edit a row. Unsold is not stored here: it is always Total − Sold. */
   const edit = (key: string, patch: Partial<Line>) => {
     touch();
     setLines((ls) =>
       ls.map((l) => {
         if (l.key !== key) return l;
         const next = { ...l, ...patch };
-        if ('sold_quantity' in patch) {
-          next.unsold_quantity = next.total_quantity !== '' && next.sold_quantity !== '' ? diff(next.total_quantity, next.sold_quantity) : next.unsold_quantity;
-        } else if ('unsold_quantity' in patch) {
-          if (next.total_quantity !== '' && next.unsold_quantity !== '') next.sold_quantity = diff(next.total_quantity, next.unsold_quantity);
-        } else if ('total_quantity' in patch && next.total_quantity !== '') {
-          if (next.sold_quantity !== '') next.unsold_quantity = diff(next.total_quantity, next.sold_quantity);
-          else if (next.unsold_quantity !== '') next.sold_quantity = diff(next.total_quantity, next.unsold_quantity);
-        }
         // SHARE follows SOLD (workbook: =IF(F="","",F)) unless edited by hand
         if (!next.shareTouched) next.share_quantity = next.sold_quantity;
         return next;
@@ -259,7 +243,7 @@ export default function DailySaleEditorPage() {
         total_quantity: total,
       };
     });
-    setLines((ls) => [...ls.filter((l) => l.item_name.trim() || l.total_quantity || l.sold_quantity || l.unsold_quantity), ...added]);
+    setLines((ls) => [...ls.filter((l) => l.item_name.trim() || l.total_quantity || l.sold_quantity), ...added]);
     touch();
     setTab('sheet');
     toast.success(`${added.length} item${added.length === 1 ? '' : 's'} added from history.${skipped ? ` ${skipped} already on the sheet.` : ''} Enter today's quantities.`);
@@ -287,7 +271,7 @@ export default function DailySaleEditorPage() {
   const deductDeficit = settings?.deduct_deficit_in_net !== false;
   const grossSales = Math.round((shareTotal + otherShares) * 100) / 100;
   const netSales = Math.round((grossSales - dayExpenses - (deductDeficit ? dayDeficit : 0)) * 100) / 100;
-  const meaningful = lines.filter((l) => l.item_name.trim() || l.total_quantity || l.sold_quantity || l.unsold_quantity);
+  const meaningful = lines.filter((l) => l.item_name.trim() || l.total_quantity || l.sold_quantity);
   const byConsignee = useMemo(() => {
     const m = new Map<string, { consignee: string; items: number; sold: number; sales: number; share: number; remit: number }>();
     lines.forEach((l, i) => {
@@ -308,7 +292,6 @@ export default function DailySaleEditorPage() {
     if (!l.item_name.trim()) return 'Item name is required.';
     if (l.unit_price === '') return 'Selling price is required.';
     if (!l.is_canteen_stock && l.cost_price !== '' && Number(l.cost_price) > n(l.unit_price)) return 'Cost price is higher than the selling price.';
-    if (l.total_quantity !== '' && l.unsold_quantity !== '' && Number(l.unsold_quantity) > Number(l.total_quantity)) return 'Unsold is more than the total quantity.';
     return calcLine(numericLines[i]).error;
   });
   const stockWarnings = lines.map((l) => {
@@ -322,7 +305,7 @@ export default function DailySaleEditorPage() {
   const emptyInputs = meaningful.reduce(
     (a, l) =>
       a +
-      [l.item_name.trim(), l.unit_price, l.total_quantity, l.sold_quantity, l.unsold_quantity, l.is_canteen_stock ? 'x' : l.cost_price].filter((v) => v === '').length,
+      [l.item_name.trim(), l.unit_price, l.total_quantity, l.sold_quantity, l.is_canteen_stock ? 'x' : l.cost_price].filter((v) => v === '').length,
     0,
   );
   const missingCost = meaningful.filter((l) => !l.is_canteen_stock && l.cost_price === '').length;
@@ -405,7 +388,7 @@ export default function DailySaleEditorPage() {
     if (Number.isNaN(row)) return;
     e.preventDefault();
     const next = lines[row + 1];
-    const blank = (l?: Line) => Boolean(l) && !l!.item_name.trim() && !l!.total_quantity && !l!.sold_quantity && !l!.unsold_quantity;
+    const blank = (l?: Line) => Boolean(l) && !l!.item_name.trim() && !l!.total_quantity && !l!.sold_quantity;
     focusRow.current = row + 1;
     if (blank(next)) {
       setLines((ls) => [...ls]); // re-render to run the focus effect
@@ -762,7 +745,7 @@ export default function DailySaleEditorPage() {
             <Card>
               <CardHeader
                 title="Daily sales sheet"
-                description={`Sales = Sold × Selling price · Unsold = Total − Sold (or enter Unsold and Sold is worked out) · Canteen share = (Selling − Cost) × Sold, or ₱${shareRate.toFixed(2)} × Sold without a cost price · Remit = Sales − Canteen share`}
+                description={`Sales = Sold × Selling price · Unsold = Total − Sold (locked) · Canteen share = (Selling − Cost) × Sold, or ₱${shareRate.toFixed(2)} × Sold without a cost price · Remit = Sales − Canteen share`}
                 actions={
                   editable && (
                     <>
@@ -803,7 +786,7 @@ export default function DailySaleEditorPage() {
                       <th className="border-b border-surface-border px-2 pb-1.5 text-right">Selling</th>
                       <th className="border-b border-l border-surface-border px-2 pb-1.5 text-right">Total</th>
                       <th className="border-b border-surface-border px-2 pb-1.5 text-right">Sold</th>
-                      <th className="border-b border-surface-border px-2 pb-1.5 text-right">Unsold</th>
+                      <th className="border-b border-surface-border px-2 pb-1.5 text-right" title="Locked — Total − Sold">Unsold</th>
                     </tr>
                   </thead>
                   <tbody onKeyDown={onSheetKeyDown}>
@@ -911,23 +894,19 @@ export default function DailySaleEditorPage() {
                               onChange={(e) => edit(l.key, { sold_quantity: e.target.value })}
                               className={cn(inputCell(need(l.sold_quantity)), 'font-semibold', c.error && 'text-danger-600')}
                               aria-required={started || undefined}
-                              title={need(l.sold_quantity) ? 'Enter the quantity sold — or enter Unsold and this is worked out' : undefined}
+                              title={need(l.sold_quantity) ? 'Required — enter the quantity sold (0 if none)' : undefined}
                               aria-label={`Sold quantity row ${i + 1}`}
                             />
                           </td>
-                          <td className="px-1 py-1">
-                            <input
-                              type="number"
-                              min={0}
-                              step="any"
-                              value={l.unsold_quantity}
-                              disabled={!editable}
-                              onChange={(e) => edit(l.key, { unsold_quantity: e.target.value })}
-                              className={cn(inputCell(need(l.unsold_quantity)), c.unsoldQuantity < 0 && 'text-danger-600')}
-                              aria-required={started || undefined}
-                              title={need(l.unsold_quantity) ? 'Enter the leftover quantity — or enter Sold and this is worked out' : undefined}
-                              aria-label={`Unsold quantity row ${i + 1}`}
-                            />
+                          <td
+                            className={cn(calcCell, c.unsoldQuantity < 0 && 'text-danger-600')}
+                            title="Locked — calculated as Total − Sold"
+                            aria-label={`Unsold quantity row ${i + 1} (calculated)`}
+                          >
+                            <span className="inline-flex items-center justify-end gap-1">
+                              {editable && <Lock className="size-3 text-ink-soft" aria-hidden />}
+                              {l.total_quantity === '' || l.sold_quantity === '' ? <span className="text-ink-soft">—</span> : qty(c.unsoldQuantity)}
+                            </span>
                           </td>
                           <td className={cn(calcCell, 'border-l border-surface-border font-medium')}>{peso(c.salesAmount)}</td>
                           <td className="bg-brand-50/40 px-3 py-2.5 text-right font-semibold tabular text-brand-700">{peso(money[i].canteenShare)}</td>
