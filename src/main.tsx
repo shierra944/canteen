@@ -6,7 +6,10 @@ import { Toaster } from 'sonner';
 import { AuthProvider } from '@/providers/auth';
 import { ThemeProvider, useTheme } from '@/providers/theme';
 import { App } from './App';
+import { setupInstall } from '@/lib/install';
 import './index.css';
+
+setupInstall();
 
 const queryClient = new QueryClient({
   defaultOptions: {

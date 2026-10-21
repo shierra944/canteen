@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { InstallAppButton } from '@/components/InstallApp';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import * as Popover from '@radix-ui/react-popover';
 import { Bell, CalendarDays, Check, ChevronRight, LogOut, Menu as MenuIcon, Monitor, Moon, Search, Sun, UserRound } from 'lucide-react';
@@ -94,6 +95,7 @@ export function Topbar({ onOpenMobile }: { onOpenMobile: () => void }) {
           />
         </label>
 
+        <InstallAppButton />
         <ThemeToggle />
         <Notifications />
 

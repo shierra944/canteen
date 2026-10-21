@@ -3,7 +3,7 @@
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "rewrites": [{ "source": "/((?!assets/|logos/|fonts/).*)", "destination": "/index.html" }],
+  "rewrites": [{ "source": "/((?!assets/|logos/|fonts/|icons/|sw.js|manifest.webmanifest).*)", "destination": "/index.html" }],
   "headers": [
     {
       "source": "/(.*)",
