@@ -11,7 +11,6 @@ import { Button } from '@/components/ui/button';
 import { Checkbox, Field, Input, Select, Textarea } from '@/components/ui/form';
 import { Callout } from '@/components/ui/feedback';
 
-const PAYMENT_METHODS = ['Cash', 'GCash', 'Bank transfer', 'Check', 'Other'];
 
 export function TxnDialog({ open, onOpenChange, txn }: { open: boolean; onOpenChange: (o: boolean) => void; txn?: FinancialTxn | null }) {
   const { data: cats = [] } = useFinCategories();
@@ -146,17 +145,6 @@ export function TxnDialog({ open, onOpenChange, txn }: { open: boolean; onOpenCh
         </Field>
         <Field label="Requested by / received from">
           <Input value={f.requested_by} onChange={(e) => setF({ ...f, requested_by: e.target.value })} placeholder="e.g. Canteen-in-Charge" />
-        </Field>
-        <Field label="Payment method">
-          <Select value={f.payment_method} onChange={(e) => setF({ ...f, payment_method: e.target.value })}>
-            <option value="">—</option>
-            {PAYMENT_METHODS.map((m) => (
-              <option key={m}>{m}</option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Reference / receipt no.">
-          <Input value={f.reference_number} onChange={(e) => setF({ ...f, reference_number: e.target.value })} />
         </Field>
         <Field label="Remarks" className="sm:col-span-2">
           <Textarea rows={2} value={f.remarks} onChange={(e) => setF({ ...f, remarks: e.target.value })} />

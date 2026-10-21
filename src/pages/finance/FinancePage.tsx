@@ -364,8 +364,6 @@ export default function FinancePage() {
               <KeyValue label="Amount">{peso(detail.amount)}</KeyValue>
               <KeyValue label="Category">{detail.category_name ?? '—'}</KeyValue>
               <KeyValue label="Requested / given by">{detail.requested_by ?? '—'}</KeyValue>
-              <KeyValue label="Payment method">{detail.payment_method ?? '—'}</KeyValue>
-              <KeyValue label="Reference no.">{detail.reference_number ?? '—'}</KeyValue>
               <KeyValue label="Status"><StatusBadge status={detail.status} /></KeyValue>
               <KeyValue label="Counted in Other Shares">{detail.transaction_type === 'sale' ? (detail.included_in_daily_sales || detail.status !== 'posted' ? 'No' : 'Yes') : 'n/a'}</KeyValue>
               <KeyValue label="Created">{formatDateTime(detail.created_at)} · {detail.created_by_name ?? '—'}</KeyValue>
