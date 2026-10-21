@@ -61,7 +61,7 @@
       --c-gold-600: 235 203 69;
       --c-ink: 243 239 226;
       --c-ink-muted: 169 177 164;
-      --c-ink-soft: 124 135 121;
+      --c-ink-soft: 142 153 139;
       --c-surface: 10 29 19;
       --c-surface-page: 5 18 11;
       --c-surface-sunken: 15 37 25;
@@ -114,7 +114,7 @@
     scrollbar-color: rgb(var(--c-surface-strong)) transparent;
   }
   .card {
-    @apply rounded-2xl border border-surface-border bg-white shadow-card;
+    @apply rounded-2xl border border-surface-border bg-surface shadow-card;
   }
   .label-caps {
     @apply text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-muted;

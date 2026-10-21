@@ -178,7 +178,7 @@ function Notifications() {
           {visible.length > 0 && (
             <span
               className={cn(
-                'absolute right-1 top-1 flex min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-bold leading-[18px] text-white ring-2 ring-white',
+                'absolute right-1 top-1 flex min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-bold leading-[18px] text-white ring-2 ring-surface',
                 urgent ? 'bg-danger-500' : 'bg-brand-500',
               )}
             >

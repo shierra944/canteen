@@ -4,6 +4,7 @@ import { CHART } from '@/components/shared';
 import { eachDay, monthKey, weekKey } from '@/lib/periods';
 import { formatDate, parseISODate, peso, pesoCompact, toNumber } from '@/lib/utils';
 import type { DailySummaryRow } from '@/lib/types';
+import { useTheme } from '@/providers/theme';
 
 export type Granularity = 'daily' | 'weekly' | 'monthly';
 
@@ -94,6 +95,7 @@ const axisProps = {
 } as const;
 
 export function FinancialOverviewChart({ data }: { data: SeriesPoint[] }) {
+  useTheme(); // re-render with the theme's chart colours
   const hasData = useMemo(() => data.some((d) => d.gross || d.expenses || d.net), [data]);
   if (!hasData) return <ChartEmpty />;
   return (
@@ -122,6 +124,7 @@ export function FinancialOverviewChart({ data }: { data: SeriesPoint[] }) {
 }
 
 export function SalesBarChart({ data, dataKey = 'gross', name = 'Gross sales' }: { data: SeriesPoint[]; dataKey?: keyof SeriesPoint; name?: string }) {
+  useTheme(); // re-render with the theme's chart colours
   if (!data.some((d) => toNumber(d[dataKey]) !== 0)) return <ChartEmpty />;
   return (
     <ResponsiveContainer width="100%" height={260}>
