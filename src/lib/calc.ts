@@ -61,3 +61,29 @@ export function calcTotals(lines: LineInput[]): DailyTotals {
 export function canteenShares(shareUnits: number, rate: number): number {
   return round2(shareUnits * rate);
 }
+
+export interface ShareInput extends LineInput {
+  cost_price: number | null;
+  is_canteen_stock: boolean;
+}
+
+/**
+ * Canteen share per piece (mirrors public.line_share_per_piece):
+ * canteen stock → full price; consigned with cost → price − cost; else the share rate.
+ */
+export function sharePerPiece(l: ShareInput, rate: number): number {
+  if (l.is_canteen_stock) return Number(l.unit_price) || 0;
+  if (l.cost_price !== null && l.cost_price !== undefined && !Number.isNaN(l.cost_price)) return (Number(l.unit_price) || 0) - l.cost_price;
+  return rate;
+}
+
+export interface LineMoney {
+  canteenShare: number;
+  remit: number;
+}
+
+/** Canteen share = share qty × share per piece; remit to consignee = sales − share. */
+export function lineMoney(l: ShareInput, rate: number): LineMoney {
+  const canteenShare = round2((Number(l.share_quantity) || 0) * sharePerPiece(l, rate));
+  return { canteenShare, remit: round2(calcLine(l).salesAmount - canteenShare) };
+}

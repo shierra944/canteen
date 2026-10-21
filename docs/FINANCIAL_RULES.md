@@ -13,7 +13,7 @@ inventing a value.
 | Unsold Quantity | `H = D − F` | `total_quantity − sold_quantity` (generated column) |
 | Unsold Amount | `I = E × H` | `unsold_quantity × unit_price` (generated column) |
 | Share | `J = F` (a **quantity**) | `share_quantity`, defaults to sold quantity, editable |
-| Daily Canteen Shares | `SUMMARY!D16 = 'DAILY SALES'!J15` (Σ SHARE) | Σ share quantity × **canteen share rate** (₱1.00, frozen per record at finalization) |
+| Daily Canteen Shares | `SUMMARY!D16 = 'DAILY SALES'!J15` (Σ SHARE) | Σ per-line canteen share (see below); with no cost prices this is Σ share quantity × ₱1.00, exactly as in the workbook |
 | Other Shares | `SUMMARY!E = SUMIF(nature="Sale")` | Σ posted *Sale* transactions **not** already included in daily sales |
 | Gross Sales | `F = D + E` | Daily Canteen Shares + Other Shares |
 | Expenses | `G = SUMIF(nature="Expense")` | Σ posted *Expense* transactions |
@@ -27,6 +27,18 @@ School Clinic Fund 5%, Faculty and Student Development Fund 15%,
 H.E. Instructional Fund 10%, **School Operations Fund 25%**, **Revolving Capital 10%**
 (total 100%). *Canteen Share* is listed in TYPE OF FUNDS but has no percentage,
 so it is configured as **not allocatable**.
+
+## Canteen share and consignee remittance (per line of the day sheet)
+
+| Line type | Canteen share | Remit to consignee |
+|---|---|---|
+| Consigned item **with** a cost price | (selling − cost) × share qty | sales − canteen share (= cost × sold) |
+| Consigned item **without** a cost price | share rate (₱1.00) × share qty — workbook rule | sales − canteen share |
+| Canteen-stock item | full sales amount (canteen revenue) | nothing |
+
+The cost price is frozen on each line when the record is saved, so later price
+changes never alter finalized days. **Please confirm** that the cost price agreed
+with each consignee is what they receive per piece sold.
 
 ## Please confirm (shown as alerts until confirmed)
 

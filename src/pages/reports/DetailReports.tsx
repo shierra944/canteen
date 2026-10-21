@@ -34,14 +34,14 @@ export function DailySalesReport({ filters }: { filters: ReportFilters }) {
             (!term || i.item_name_snapshot.toLowerCase().includes(term)) &&
             (!filters.invCategoryId || (i.inventory_item_id && invCat.get(i.inventory_item_id) === filters.invCategoryId)),
         );
-        const sum = (k: 'sold_quantity' | 'sales_amount' | 'unsold_quantity' | 'unsold_amount' | 'share_quantity' | 'total_quantity') => items.reduce((a, i) => a + toNumber(i[k]), 0);
-        return { sale: s, items, totals: { total: sum('total_quantity'), sold: sum('sold_quantity'), amount: sum('sales_amount'), unsold: sum('unsold_quantity'), unsold_amount: sum('unsold_amount'), share: sum('share_quantity') } };
+        const sum = (k: 'sold_quantity' | 'sales_amount' | 'unsold_quantity' | 'unsold_amount' | 'share_quantity' | 'total_quantity' | 'canteen_share' | 'remit_amount') => items.reduce((a, i) => a + toNumber(i[k]), 0);
+        return { sale: s, items, totals: { total: sum('total_quantity'), sold: sum('sold_quantity'), amount: sum('sales_amount'), unsold: sum('unsold_quantity'), unsold_amount: sum('unsold_amount'), share: sum('share_quantity'), canteen_share: sum('canteen_share'), remit: sum('remit_amount') } };
       })
       .filter((d) => d.items.length > 0);
   }, [data, filters.item, filters.invCategoryId, invCat]);
   const grand = days.reduce(
-    (a, d) => ({ sold: a.sold + d.totals.sold, amount: a.amount + d.totals.amount, unsold: a.unsold + d.totals.unsold, unsold_amount: a.unsold_amount + d.totals.unsold_amount, share: a.share + d.totals.share }),
-    { sold: 0, amount: 0, unsold: 0, unsold_amount: 0, share: 0 },
+    (a, d) => ({ sold: a.sold + d.totals.sold, amount: a.amount + d.totals.amount, unsold: a.unsold + d.totals.unsold, unsold_amount: a.unsold_amount + d.totals.unsold_amount, share: a.share + d.totals.share, canteen_share: a.canteen_share + d.totals.canteen_share, remit: a.remit + d.totals.remit }),
+    { sold: 0, amount: 0, unsold: 0, unsold_amount: 0, share: 0, canteen_share: 0, remit: 0 },
   );
   const cols = [
     { key: 'no', header: 'No.', width: 6 },
@@ -52,7 +52,8 @@ export function DailySalesReport({ filters }: { filters: ReportFilters }) {
     { key: 'amount', header: 'Sales Amount', format: 'peso' as const, width: 13 },
     { key: 'unsold', header: 'Unsold Qty', format: 'qty' as const, width: 10 },
     { key: 'unsold_amount', header: 'Unsold Amount', format: 'peso' as const, width: 13 },
-    { key: 'share', header: 'Share', format: 'qty' as const, width: 8 },
+    { key: 'canteen_share', header: 'Canteen Share', format: 'peso' as const, width: 12 },
+    { key: 'remit', header: 'Remit', format: 'peso' as const, width: 12 },
   ];
   const report = (): OfficialReport => ({
     title: 'Daily Sales Report',
@@ -65,14 +66,16 @@ export function DailySalesReport({ filters }: { filters: ReportFilters }) {
     sections: days.map((d) => ({
       title: formatDate(d.sale.sale_date, 'long'),
       columns: cols,
-      rows: d.items.map((i, idx) => ({ no: idx + 1, item: i.item_name_snapshot, consignee: i.consignee, sold: i.sold_quantity, price: i.unit_price, amount: i.sales_amount, unsold: i.unsold_quantity, unsold_amount: i.unsold_amount, share: i.share_quantity })),
-      totals: { item: 'DAILY TOTAL', sold: d.totals.sold, amount: d.totals.amount, unsold: d.totals.unsold, unsold_amount: d.totals.unsold_amount, share: d.totals.share },
+      rows: d.items.map((i, idx) => ({ no: idx + 1, item: i.item_name_snapshot, consignee: i.is_canteen_stock ? 'Canteen stock' : i.consignee, sold: i.sold_quantity, price: i.unit_price, amount: i.sales_amount, unsold: i.unsold_quantity, unsold_amount: i.unsold_amount, canteen_share: i.canteen_share, remit: i.is_canteen_stock ? null : i.remit_amount })),
+      totals: { item: 'DAILY TOTAL', sold: d.totals.sold, amount: d.totals.amount, unsold: d.totals.unsold, unsold_amount: d.totals.unsold_amount, canteen_share: d.totals.canteen_share, remit: d.totals.remit },
     })),
     summary: [
       { label: 'Days reported', value: String(days.length) },
       { label: 'Total units sold', value: qty(grand.sold) },
       { label: 'Total sales amount', value: peso(grand.amount), emphasis: true },
       { label: 'Total unsold amount', value: peso(grand.unsold_amount) },
+      { label: 'Total canteen share', value: peso(grand.canteen_share), emphasis: true },
+      { label: 'Total remitted to consignees', value: peso(grand.remit) },
     ],
   });
 
@@ -107,7 +110,8 @@ export function DailySalesReport({ filters }: { filters: ReportFilters }) {
                       <TH align="right">Amount</TH>
                       <TH align="right">Unsold</TH>
                       <TH align="right">Unsold amt</TH>
-                      <TH align="right">Share</TH>
+                      <TH align="right">Canteen share</TH>
+                      <TH align="right">Remit</TH>
                     </tr>
                   </THead>
                   <tbody>
@@ -121,7 +125,8 @@ export function DailySalesReport({ filters }: { filters: ReportFilters }) {
                         <TD align="right" className="font-medium">{peso(i.sales_amount)}</TD>
                         <TD align="right">{qty(i.unsold_quantity)}</TD>
                         <TD align="right">{peso(i.unsold_amount)}</TD>
-                        <TD align="right">{qty(i.share_quantity)}</TD>
+                        <TD align="right" className="text-brand-700">{peso(i.canteen_share)}</TD>
+                        <TD align="right" className="text-gold-600">{i.is_canteen_stock ? '—' : peso(i.remit_amount)}</TD>
                       </TR>
                     ))}
                   </tbody>
@@ -132,7 +137,8 @@ export function DailySalesReport({ filters }: { filters: ReportFilters }) {
               <span>Units sold: {qty(grand.sold)}</span>
               <span>Sales: {peso(grand.amount)}</span>
               <span>Unsold: {qty(grand.unsold)} ({peso(grand.unsold_amount)})</span>
-              <span>Share: {qty(grand.share)}</span>
+              <span>Canteen share: {peso(grand.canteen_share)}</span>
+              <span>Remit: {peso(grand.remit)}</span>
             </div>
           </div>
         )}

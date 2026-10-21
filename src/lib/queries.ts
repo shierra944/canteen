@@ -198,7 +198,7 @@ export function useDailySale(id: string | undefined) {
     queryFn: async () => {
       const [sale, items] = await Promise.all([
         supabase.from('v_daily_sales').select('*').eq('id', id!).single(),
-        supabase.from('daily_sale_items').select('*').eq('daily_sale_id', id!).order('line_no'),
+        supabase.from('v_daily_sale_lines').select('*').eq('daily_sale_id', id!).order('line_no'),
       ]);
       return { sale: unwrap(sale) as DailySale, items: unwrap(items) as DailySaleItem[] };
     },
@@ -215,7 +215,7 @@ export function useDailySalesByDates(start: string, end: string) {
       if (sales.length === 0) return { sales, items: [] as DailySaleItem[] };
       const items = unwrap(
         await supabase
-          .from('daily_sale_items')
+          .from('v_daily_sale_lines')
           .select('*')
           .in('daily_sale_id', sales.map((s) => s.id))
           .order('line_no'),

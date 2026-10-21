@@ -316,7 +316,7 @@ test('dashboard metrics and ledger view work for staff', async () => {
   const [{ dashboard_metrics: m }] = await db.as(staff, `select public.dashboard_metrics('2026-03-01', '2026-03-31')`);
   assert.equal(num(m.items_low_stock), 1);
   assert.equal(num(m.items_out_of_stock), 0);
-  assert.equal(num(m.daily_canteen_shares), 567 + 3, 'Mar 2 (567 shares) + Mar 3 exception sale (3 shares)');
+  assert.equal(num(m.daily_canteen_shares), 567 + 60, 'Mar 2 (567 × ₱1) + Mar 3 canteen-stock Coke (3 × ₱20, all canteen income)');
   assert.ok(num(m.inventory_value) > 0);
   const ledger = await db.as(staff, `select kind, ref_no from public.v_transaction_ledger order by created_at desc limit 50`);
   assert.ok(ledger.some((l) => l.kind === 'daily_sale'));
@@ -359,4 +359,31 @@ test('consigned items are sold through daily sales but never touch stock', async
   const alerts = await db.as(staff, 'select alert_key from public.get_alerts()');
   assert.ok(!alerts.some((a) => a.alert_key.includes(hc.id)), 'no stock alerts for consigned items');
   await rejects(db.as(staff, `insert into public.consignees (name) values ('Sneaky')`), /row-level security|permission/);
+});
+
+// ------------------------------------------------------------ day sheet
+test('day sheet: canteen share and consignee remittance per line', async () => {
+  const [{ id: judy }] = await db.sql(`select id from public.consignees where name = 'Judy Ann'`);
+  const [{ create_inventory_item: spag }] = await db.as(admin, 'select public.create_inventory_item($1)', [{
+    name: 'Spaghetti w/ cost', is_consigned: true, consignee_id: judy, selling_price: 20, unit_cost: 15 }]);
+  const [hc] = await db.sql(`select id from public.inventory_items where name = 'Hot cake'`);
+  const [{ save_daily_sale: s }] = await db.as(staff, 'select public.save_daily_sale(null, $1, null, null, $2)', ['2026-03-09', [
+    { inventory_item_id: spag, total_quantity: 21, sold_quantity: 6 },                       // margin: (20-15) × 6
+    { inventory_item_id: hc.id, total_quantity: 37, unit_price: 10, sold_quantity: 28 },     // no cost → ₱1 × 28
+    { inventory_item_id: rice, total_quantity: 10, unit_price: 10, sold_quantity: 4 },       // canteen stock → all
+    { item_name: 'Turon', consignee: 'Chaii', total_quantity: 30, unit_price: 15, sold_quantity: 20, cost_price: 12 },
+  ]]);
+  const lines = await db.as(staff, 'select item_name_snapshot, canteen_share, remit_amount, cost_price, is_canteen_stock from public.v_daily_sale_lines where daily_sale_id = $1 order by line_no', [s.id]);
+  assert.deepEqual(lines.map((l) => [num(l.canteen_share), num(l.remit_amount)]), [[30, 90], [28, 252], [40, 0], [60, 240]]);
+  assert.equal(num(lines[0].cost_price), 15, 'cost taken from the consigned product');
+  assert.equal(lines[2].is_canteen_stock, true);
+  const [d] = await db.as(staff, 'select canteen_shares, remit_total, sales_amount from public.v_daily_sales where id = $1', [s.id]);
+  assert.equal(num(d.canteen_shares), 158);
+  assert.equal(num(d.remit_total), 582);
+  assert.equal(num(d.canteen_shares) + num(d.remit_total), num(d.sales_amount), 'share + remittance = sales collected');
+  await rejects(db.as(staff, 'select public.save_daily_sale($1, $2, null, null, $3)', [s.id, '2026-03-09', [
+    { item_name: 'X', total_quantity: 1, unit_price: 10, sold_quantity: 1, cost_price: 12 }]]), /higher than the selling price/);
+  await db.as(staff, 'select public.finalize_daily_sale($1)', [s.id]);
+  const [r] = await db.sql(`select daily_canteen_shares from public.report_daily_summary('2026-03-09', '2026-03-09')`);
+  assert.equal(num(r.daily_canteen_shares), 158, 'reports use the same per-line rule');
 });

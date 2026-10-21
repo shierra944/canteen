@@ -193,6 +193,7 @@ export interface DailySale {
   canteen_shares: Num;
   created_by_name: string | null;
   finalized_by_name: string | null;
+  remit_total: Num;
 }
 
 export interface DailySaleItem {
@@ -211,6 +212,12 @@ export interface DailySaleItem {
   unsold_quantity: Num;
   unsold_amount: Num;
   posted_txn_id: string | null;
+  cost_price: Num | null;
+  is_canteen_stock: boolean;
+  /** from v_daily_sale_lines */
+  canteen_share?: Num;
+  remit_amount?: Num;
+  share_per_piece?: Num;
 }
 
 export interface FinCategory {

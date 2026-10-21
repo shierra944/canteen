@@ -38,3 +38,17 @@ describe('daily sales line maths (workbook DAILY SALES, March 2 2026)', () => {
     expect(round2(-2.675)).toBe(-2.68);
   });
 });
+
+describe('canteen share and remittance (matches public.v_daily_sale_lines)', async () => {
+  const { lineMoney } = await import('../../src/lib/calc');
+  const base = { total_quantity: 21, unit_price: 20, sold_quantity: 6, share_quantity: 6 };
+  it('consigned with cost price → margin to canteen, cost to consignee', () => {
+    expect(lineMoney({ ...base, cost_price: 15, is_canteen_stock: false }, 1)).toEqual({ canteenShare: 30, remit: 90 });
+  });
+  it('consigned without cost → workbook ₱1 per piece', () => {
+    expect(lineMoney({ total_quantity: 37, unit_price: 10, sold_quantity: 28, share_quantity: 28, cost_price: null, is_canteen_stock: false }, 1)).toEqual({ canteenShare: 28, remit: 252 });
+  });
+  it('canteen stock → all revenue to canteen', () => {
+    expect(lineMoney({ ...base, cost_price: null, is_canteen_stock: true }, 1)).toEqual({ canteenShare: 120, remit: 0 });
+  });
+});

@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useBlocker, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, Copy, CopyPlus, Lock, Plus, Save, ShieldAlert, Trash2, Unlock } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Copy, CopyPlus, HandCoins, Lock, Plus, Save, Scale, ShieldAlert, Trash2, TrendingUp, Unlock } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/providers/auth';
 import { useApp } from '@/providers/app';
 import { rpc, supabase, unwrap } from '@/lib/supabase';
-import { FINANCIAL_KEYS, keys, useConsignees, useDailySale, useInventory, useInvalidate } from '@/lib/queries';
-import { calcLine, calcTotals, canteenShares } from '@/lib/calc';
+import { FINANCIAL_KEYS, keys, useConsignees, useDailySale, useDailySummary, useInventory, useInvalidate } from '@/lib/queries';
+import { calcLine, calcTotals, lineMoney } from '@/lib/calc';
 import { cn, formatDate, formatDateTime, peso, qty, toNumber, todayPH, uuid } from '@/lib/utils';
 import type { DailySaleItem, InventoryItem } from '@/lib/types';
 import { Card, CardBody, CardHeader } from '@/components/ui/card';
@@ -32,6 +32,8 @@ interface Line {
   sold_quantity: string;
   share_quantity: string;
   shareTouched: boolean;
+  cost_price: string;
+  is_canteen_stock: boolean;
 }
 
 const newLine = (): Line => ({
@@ -44,6 +46,8 @@ const newLine = (): Line => ({
   sold_quantity: '',
   share_quantity: '',
   shareTouched: false,
+  cost_price: '',
+  is_canteen_stock: false,
 });
 
 function fromItems(items: DailySaleItem[]): Line[] {
@@ -57,6 +61,8 @@ function fromItems(items: DailySaleItem[]): Line[] {
     sold_quantity: String(toNumber(i.sold_quantity)),
     share_quantity: String(toNumber(i.share_quantity)),
     shareTouched: toNumber(i.share_quantity) !== toNumber(i.sold_quantity),
+    cost_price: i.cost_price === null ? '' : String(toNumber(i.cost_price)),
+    is_canteen_stock: i.is_canteen_stock,
   }));
 }
 
@@ -151,6 +157,8 @@ export default function DailySaleEditorPage() {
       item_name: item.name,
       unit_price: String(toNumber(item.selling_price)),
       consignee: item.is_consigned ? item.consignee_name ?? '' : lines.find((l) => l.key === key)?.consignee || item.default_consignee || '',
+      is_canteen_stock: !item.is_consigned,
+      cost_price: item.is_consigned && toNumber(item.unit_cost) > 0 ? String(toNumber(item.unit_cost)) : '',
     });
 
   const numericLines = lines.map((l) => ({
@@ -158,14 +166,44 @@ export default function DailySaleEditorPage() {
     unit_price: n(l.unit_price),
     sold_quantity: n(l.sold_quantity),
     share_quantity: n(l.share_quantity),
+    cost_price: l.is_canteen_stock || l.cost_price === '' ? null : Number(l.cost_price),
+    is_canteen_stock: l.is_canteen_stock,
   }));
   const totals = calcTotals(numericLines);
   const shareRate = toNumber(sale?.share_rate ?? settings?.canteen_share_rate ?? 1);
+  const money = numericLines.map((l) => lineMoney(l, shareRate));
+  const shareTotal = Math.round(money.reduce((a, m) => a + m.canteenShare, 0) * 100) / 100;
+  const remitTotal = Math.round(money.reduce((a, m) => a + m.remit, 0) * 100) / 100;
+  // Other shares / expenses / deficit recorded for the same day (posted transactions)
+  const { data: dayRows } = useDailySummary(date, date);
+  const fin = dayRows?.[0];
+  const otherShares = toNumber(fin?.other_shares);
+  const dayExpenses = toNumber(fin?.expenses);
+  const dayDeficit = toNumber(fin?.deficit);
+  const deductDeficit = settings?.deduct_deficit_in_net !== false;
+  const grossSales = Math.round((shareTotal + otherShares) * 100) / 100;
+  const netSales = Math.round((grossSales - dayExpenses - (deductDeficit ? dayDeficit : 0)) * 100) / 100;
+  const byConsignee = useMemo(() => {
+    const m = new Map<string, { consignee: string; items: number; sold: number; sales: number; share: number; remit: number }>();
+    lines.forEach((l, i) => {
+      if (!l.item_name.trim() || l.is_canteen_stock) return;
+      const k = l.consignee.trim() || '(no consignee)';
+      const g = m.get(k.toLowerCase()) ?? { consignee: k, items: 0, sold: 0, sales: 0, share: 0, remit: 0 };
+      g.items += 1;
+      g.sold += numericLines[i].sold_quantity;
+      g.sales += calcLine(numericLines[i]).salesAmount;
+      g.share += money[i].canteenShare;
+      g.remit += money[i].remit;
+      m.set(k.toLowerCase(), g);
+    });
+    return [...m.values()].sort((a, b) => a.consignee.localeCompare(b.consignee));
+  }, [lines]); // eslint-disable-line react-hooks/exhaustive-deps
   const meaningful = lines.filter((l) => l.item_name.trim() || l.total_quantity || l.sold_quantity);
   const lineErrors = lines.map((l, i) => {
     if (!meaningful.includes(l)) return null;
     if (!l.item_name.trim()) return 'Item name is required.';
     if (l.unit_price === '') return 'Price is required.';
+    if (!l.is_canteen_stock && l.cost_price !== '' && Number(l.cost_price) > n(l.unit_price)) return 'Cost price is higher than the selling price.';
     return calcLine(numericLines[i]).error;
   });
   const stockWarnings = lines.map((l) => {
@@ -191,6 +229,7 @@ export default function DailySaleEditorPage() {
         unit_price: n(l.unit_price),
         sold_quantity: n(l.sold_quantity),
         share_quantity: n(l.share_quantity),
+        cost_price: l.is_canteen_stock || l.cost_price === '' ? null : Number(l.cost_price),
       }));
       const res = await rpc<{ id: string; version: number }>('save_daily_sale', {
         p_id: id ?? null,
@@ -282,6 +321,8 @@ export default function DailySaleEditorPage() {
             item_name: i.item_name_snapshot,
             consignee: i.consignee ?? '',
             unit_price: String(inv?.is_active ? toNumber(inv.selling_price) : toNumber(i.unit_price)),
+            is_canteen_stock: Boolean(inv?.is_active && !inv.is_consigned),
+            cost_price: inv?.is_active ? (inv.is_consigned && toNumber(inv.unit_cost) > 0 ? String(toNumber(inv.unit_cost)) : '') : i.cost_price === null ? '' : String(toNumber(i.cost_price)),
           };
         }),
       );
@@ -303,36 +344,62 @@ export default function DailySaleEditorPage() {
       { key: 'no', header: 'No.', width: 6 },
       { key: 'item', header: 'Item', width: 26 },
       { key: 'consignee', header: 'Consignee', width: 16 },
-      { key: 'total', header: 'Total Quantity', format: 'qty', width: 11 },
-      { key: 'price', header: 'Price per Piece', format: 'peso', width: 12 },
-      { key: 'sold', header: 'Sold Qty', format: 'qty', width: 10 },
+      { key: 'cost', header: 'Cost Price', format: 'peso', width: 11 },
+      { key: 'price', header: 'Selling Price', format: 'peso', width: 11 },
+      { key: 'total', header: 'Total Qty', format: 'qty', width: 9 },
+      { key: 'sold', header: 'Sold', format: 'qty', width: 8 },
+      { key: 'unsold', header: 'Unsold', format: 'qty', width: 8 },
       { key: 'amount', header: 'Sales Amount', format: 'peso', width: 13 },
-      { key: 'unsold', header: 'Unsold Qty', format: 'qty', width: 10 },
-      { key: 'unsold_amount', header: 'Unsold Amount', format: 'peso', width: 13 },
-      { key: 'share', header: 'Share', format: 'qty', width: 9 },
+      { key: 'canteen_share', header: 'Canteen Share', format: 'peso', width: 13 },
+      { key: 'remit', header: 'Remit to Consignee', format: 'peso', width: 14 },
     ],
-    rows: meaningful.map((l, i) => {
-      const c = calcLine({ total_quantity: n(l.total_quantity), unit_price: n(l.unit_price), sold_quantity: n(l.sold_quantity), share_quantity: n(l.share_quantity) });
-      return {
-        no: i + 1,
-        item: l.item_name,
-        consignee: l.consignee,
-        total: n(l.total_quantity),
-        price: n(l.unit_price),
-        sold: n(l.sold_quantity),
-        amount: c.salesAmount,
-        unsold: c.unsoldQuantity,
-        unsold_amount: c.unsoldAmount,
-        share: n(l.share_quantity),
-      };
-    }),
-    totals: { item: 'TOTAL', total: totals.totalQuantity, sold: totals.unitsSold, amount: totals.salesAmount, unsold: totals.unsoldUnits, unsold_amount: totals.unsoldAmount, share: totals.shareUnits },
+    rows: lines
+      .map((l, i) => ({ l, i }))
+      .filter(({ l }) => meaningful.includes(l))
+      .map(({ l, i }, idx) => {
+        const c = calcLine(numericLines[i]);
+        return {
+          no: idx + 1,
+          item: l.item_name,
+          consignee: l.is_canteen_stock ? 'Canteen stock' : l.consignee,
+          cost: l.is_canteen_stock || l.cost_price === '' ? null : Number(l.cost_price),
+          price: n(l.unit_price),
+          total: n(l.total_quantity),
+          sold: n(l.sold_quantity),
+          unsold: c.unsoldQuantity,
+          amount: c.salesAmount,
+          canteen_share: money[i].canteenShare,
+          remit: money[i].remit,
+        };
+      }),
+    totals: { item: 'TOTAL', total: totals.totalQuantity, sold: totals.unitsSold, unsold: totals.unsoldUnits, amount: totals.salesAmount, canteen_share: shareTotal, remit: remitTotal },
+    sections: byConsignee.length
+      ? [{
+          title: 'Remittance by consignee',
+          columns: [
+            { key: 'consignee', header: 'Consignee' },
+            { key: 'items', header: 'Items', format: 'qty' },
+            { key: 'sold', header: 'Pieces Sold', format: 'qty' },
+            { key: 'sales', header: 'Sales', format: 'peso' },
+            { key: 'share', header: 'Canteen Share', format: 'peso' },
+            { key: 'remit', header: 'Amount to Remit', format: 'peso' },
+          ],
+          rows: byConsignee.map((g) => ({ ...g })),
+          totals: { consignee: 'TOTAL', sales: byConsignee.reduce((a, g) => a + g.sales, 0), share: byConsignee.reduce((a, g) => a + g.share, 0), remit: remitTotal },
+        }]
+      : undefined,
     summary: [
-      { label: 'Daily canteen shares', value: peso(canteenShares(totals.shareUnits, shareRate)) },
+      { label: 'Daily canteen shares', value: peso(shareTotal) },
+      { label: 'Other shares', value: peso(otherShares) },
+      { label: 'Gross sales', value: peso(grossSales), emphasis: true },
+      { label: 'Expenses', value: peso(dayExpenses) },
+      { label: 'Deficit', value: peso(dayDeficit) },
+      { label: 'Net sales', value: peso(netSales), emphasis: true },
+      { label: 'Total to remit to consignees', value: peso(remitTotal) },
       { label: 'Actual money', value: actualMoney === '' ? '—' : peso(actualMoney) },
       { label: 'Report status', value: sale?.status === 'finalized' ? 'Finalized' : 'Draft' },
     ],
-    notes: [`Canteen share = share quantity × ₱${shareRate.toFixed(2)} per unit.`],
+    notes: [`Canteen share: consigned items with a cost price = (selling − cost) × qty; without a cost price = ₱${shareRate.toFixed(2)} × qty; canteen stock = full sales. Remittance = sales − canteen share.`],
   });
 
   if (!isNew && error) return <ErrorState error={error} onRetry={() => refetch()} />;
@@ -392,6 +459,53 @@ export default function DailySaleEditorPage() {
           </Callout>
         )}
 
+        {/* Canteen result for the day */}
+        <div className="grid gap-4 md:grid-cols-[1.1fr_1.1fr_1.6fr]">
+          <div className="card p-5">
+            <div className="flex items-center justify-between text-[13px] font-medium text-ink-muted">
+              Gross sales (canteen) <TrendingUp className="size-4 text-brand-600" />
+            </div>
+            <div className="tabular mt-1 text-[28px] font-semibold tracking-tight text-brand-700">{peso(grossSales)}</div>
+            <div className="mt-1 text-xs text-ink-muted">
+              Canteen shares {peso(shareTotal)} + other shares {peso(otherShares)}
+            </div>
+          </div>
+          <div className="card p-5">
+            <div className="flex items-center justify-between text-[13px] font-medium text-ink-muted">
+              Net sales (canteen) <Scale className="size-4 text-brand-600" />
+            </div>
+            <div className={cn('tabular mt-1 text-[28px] font-semibold tracking-tight', netSales < 0 ? 'text-danger-600' : 'text-ink')}>{peso(netSales)}</div>
+            <div className="mt-1 text-xs text-ink-muted">
+              − expenses {peso(dayExpenses)}
+              {deductDeficit ? ` − deficit ${peso(dayDeficit)}` : ''}
+            </div>
+          </div>
+          <div className="card grid grid-cols-3 divide-x divide-surface-border p-0">
+            <div className="p-5">
+              <div className="text-[13px] font-medium text-ink-muted">Sales collected</div>
+              <div className="tabular mt-1 text-xl font-semibold">{peso(totals.salesAmount)}</div>
+              <div className="mt-1 text-xs text-ink-muted">{qty(totals.unitsSold)} pcs sold</div>
+            </div>
+            <div className="p-5">
+              <div className="flex items-center gap-1.5 text-[13px] font-medium text-ink-muted">
+                <HandCoins className="size-4 text-gold-600" /> To remit
+              </div>
+              <div className="tabular mt-1 text-xl font-semibold text-gold-600">{peso(remitTotal)}</div>
+              <div className="mt-1 text-xs text-ink-muted">{byConsignee.length} consignees</div>
+            </div>
+            <div className="p-5">
+              <div className="text-[13px] font-medium text-ink-muted">Actual money</div>
+              <div className="tabular mt-1 text-xl font-semibold">{actualMoney === '' ? '—' : peso(actualMoney)}</div>
+              <div className="mt-1 text-xs text-ink-muted">cash counted</div>
+            </div>
+          </div>
+        </div>
+        {!locked && (
+          <p className="-mt-3 text-xs text-ink-muted">
+            Figures update as you type. Other shares, expenses and deficits come from Expenses &amp; Other Sales for this date{fin ? '' : ' (none recorded yet)'}.
+          </p>
+        )}
+
         {/* Record information */}
         <Card>
           <CardBody className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-6">
@@ -420,8 +534,8 @@ export default function DailySaleEditorPage() {
         {/* Line items */}
         <Card>
           <CardHeader
-            title="Daily sales"
-            description="Sales Amount = Sold × Price · Unsold = Total − Sold · Unsold Amount = Unsold × Price · Share = quantity sold"
+            title="Daily sales sheet"
+            description={`Sales = Sold × Selling price · Canteen share = (Selling − Cost) × Sold, or ₱${shareRate.toFixed(2)} × Sold when no cost price · Remit = Sales − Canteen share`}
             actions={
               editable && (
                 <>
@@ -444,24 +558,26 @@ export default function DailySaleEditorPage() {
             }
           />
           <div className="scrollbar-thin overflow-x-auto">
-            <table className="w-full min-w-[1080px] border-collapse text-sm">
+            <table className="w-full min-w-[1240px] border-collapse text-sm">
               <thead className="bg-surface-page/80">
                 <tr className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-muted">
                   <th rowSpan={2} className="w-10 border-b border-surface-border px-3 py-2 text-left">No.</th>
                   <th rowSpan={2} className="border-b border-surface-border px-2 py-2 text-left">Item</th>
                   <th rowSpan={2} className="border-b border-surface-border px-2 py-2 text-left">Consignee</th>
-                  <th rowSpan={2} className="border-b border-surface-border px-2 py-2 text-right">Total qty</th>
-                  <th rowSpan={2} className="border-b border-surface-border px-2 py-2 text-right">Price / pc</th>
-                  <th colSpan={2} className="border-b border-l border-surface-border px-2 pt-2 text-center text-brand-700">Sold</th>
-                  <th colSpan={2} className="border-b border-l border-surface-border px-2 pt-2 text-center">Unsold</th>
-                  <th rowSpan={2} className="border-b border-l border-surface-border px-2 py-2 text-right">Share</th>
+                  <th colSpan={2} className="border-b border-l border-surface-border px-2 pt-2 text-center">Price per piece</th>
+                  <th colSpan={3} className="border-b border-l border-surface-border px-2 pt-2 text-center">Quantity</th>
+                  <th rowSpan={2} className="border-b border-l border-surface-border px-2 py-2 text-right">Sales</th>
+                  <th rowSpan={2} className="border-b border-surface-border bg-brand-50/60 px-2 py-2 text-right text-brand-700">Canteen share</th>
+                  <th rowSpan={2} className="border-b border-surface-border bg-gold-50/70 px-2 py-2 text-right text-gold-600">Remit to consignee</th>
+                  <th rowSpan={2} className="border-b border-l border-surface-border px-2 py-2 text-right" title="Workbook SHARE column (quantity)">Share qty</th>
                   <th rowSpan={2} className="w-20 border-b border-surface-border" />
                 </tr>
                 <tr className="text-[10px] font-semibold uppercase tracking-wider text-ink-soft">
-                  <th className="border-b border-l border-surface-border px-2 pb-1.5 text-right">Qty</th>
-                  <th className="border-b border-surface-border px-2 pb-1.5 text-right">Amount</th>
-                  <th className="border-b border-l border-surface-border px-2 pb-1.5 text-right">Qty</th>
-                  <th className="border-b border-surface-border px-2 pb-1.5 text-right">Amount</th>
+                  <th className="border-b border-l border-surface-border px-2 pb-1.5 text-right">Cost</th>
+                  <th className="border-b border-surface-border px-2 pb-1.5 text-right">Selling</th>
+                  <th className="border-b border-l border-surface-border px-2 pb-1.5 text-right">Total</th>
+                  <th className="border-b border-surface-border px-2 pb-1.5 text-right">Sold</th>
+                  <th className="border-b border-surface-border px-2 pb-1.5 text-right">Unsold</th>
                 </tr>
               </thead>
               <tbody>
@@ -479,7 +595,7 @@ export default function DailySaleEditorPage() {
                           items={inventory}
                           disabled={!editable}
                           invalid={Boolean(err && !l.item_name.trim())}
-                          onText={(t) => edit(l.key, { item_name: t, inventory_item_id: null })}
+                          onText={(t) => edit(l.key, { item_name: t, inventory_item_id: null, is_canteen_stock: false })}
                           onPick={(it) => pick(l.key, it)}
                           onCreate={can('inventory.manage') ? (name) => setCreateFor({ key: l.key, name }) : undefined}
                         />
@@ -488,6 +604,9 @@ export default function DailySaleEditorPage() {
                         )}
                       </td>
                       <td className="px-1 py-1">
+                        {l.is_canteen_stock ? (
+                          <div className="px-2 py-2 text-xs font-medium text-brand-700">Canteen stock</div>
+                        ) : (
                         <input
                           value={l.consignee}
                           disabled={!editable}
@@ -497,14 +616,22 @@ export default function DailySaleEditorPage() {
                           list="consignee-options"
                           aria-label={`Consignee row ${i + 1}`}
                         />
+                        )}
+                      </td>
+                      <td className="border-l border-surface-border px-1 py-1">
+                        {l.is_canteen_stock ? (
+                          <div className="px-2 py-2 text-right text-ink-soft">—</div>
+                        ) : (
+                          <input type="number" min={0} step="0.01" value={l.cost_price} placeholder="—" disabled={!editable} title={`Blank = ₱${shareRate.toFixed(2)} per piece to the canteen`} onChange={(e) => edit(l.key, { cost_price: e.target.value })} className={numCell} aria-label={`Cost price row ${i + 1}`} />
+                        )}
                       </td>
                       <td className="px-1 py-1">
+                        <input type="number" min={0} step="0.01" value={l.unit_price} disabled={!editable} onChange={(e) => edit(l.key, { unit_price: e.target.value })} className={numCell} aria-label={`Selling price row ${i + 1}`} />
+                      </td>
+                      <td className="border-l border-surface-border px-1 py-1">
                         <input type="number" min={0} step="any" value={l.total_quantity} disabled={!editable} onChange={(e) => edit(l.key, { total_quantity: e.target.value })} className={numCell} aria-label={`Total quantity row ${i + 1}`} />
                       </td>
                       <td className="px-1 py-1">
-                        <input type="number" min={0} step="0.01" value={l.unit_price} disabled={!editable} onChange={(e) => edit(l.key, { unit_price: e.target.value })} className={numCell} aria-label={`Price row ${i + 1}`} />
-                      </td>
-                      <td className="border-l border-surface-border bg-brand-50/30 px-1 py-1">
                         <input
                           type="number"
                           min={0}
@@ -516,9 +643,10 @@ export default function DailySaleEditorPage() {
                           aria-label={`Sold quantity row ${i + 1}`}
                         />
                       </td>
-                      <td className="bg-brand-50/30 px-3 py-2.5 text-right font-semibold tabular text-brand-700">{peso(c.salesAmount)}</td>
-                      <td className={cn('border-l border-surface-border px-3 py-2.5 text-right tabular', c.unsoldQuantity < 0 && 'text-danger-600')}>{qty(c.unsoldQuantity)}</td>
-                      <td className="px-3 py-2.5 text-right tabular text-ink-muted">{peso(c.unsoldAmount)}</td>
+                      <td className={cn('px-3 py-2.5 text-right tabular', c.unsoldQuantity < 0 && 'text-danger-600')}>{qty(c.unsoldQuantity)}</td>
+                      <td className="border-l border-surface-border px-3 py-2.5 text-right font-medium tabular">{peso(c.salesAmount)}</td>
+                      <td className="bg-brand-50/40 px-3 py-2.5 text-right font-semibold tabular text-brand-700">{peso(money[i].canteenShare)}</td>
+                      <td className="bg-gold-50/50 px-3 py-2.5 text-right font-semibold tabular text-gold-600">{l.is_canteen_stock ? <span className="font-normal text-ink-soft">—</span> : peso(money[i].remit)}</td>
                       <td className="border-l border-surface-border px-1 py-1">
                         <input
                           type="number"
@@ -568,15 +696,15 @@ export default function DailySaleEditorPage() {
               </tbody>
               <tfoot>
                 <tr className="bg-surface-page font-semibold">
-                  <td colSpan={3} className="px-3 py-3 text-right text-xs uppercase tracking-wider text-ink-muted">
+                  <td colSpan={5} className="px-3 py-3 text-right text-xs uppercase tracking-wider text-ink-muted">
                     Totals
                   </td>
-                  <td className="px-3 py-3 text-right tabular">{qty(totals.totalQuantity)}</td>
-                  <td />
-                  <td className="border-l border-surface-border px-3 py-3 text-right tabular">{qty(totals.unitsSold)}</td>
-                  <td className="px-3 py-3 text-right tabular text-brand-700">{peso(totals.salesAmount)}</td>
-                  <td className="border-l border-surface-border px-3 py-3 text-right tabular">{qty(totals.unsoldUnits)}</td>
-                  <td className="px-3 py-3 text-right tabular">{peso(totals.unsoldAmount)}</td>
+                  <td className="border-l border-surface-border px-3 py-3 text-right tabular">{qty(totals.totalQuantity)}</td>
+                  <td className="px-3 py-3 text-right tabular">{qty(totals.unitsSold)}</td>
+                  <td className="px-3 py-3 text-right tabular">{qty(totals.unsoldUnits)}</td>
+                  <td className="border-l border-surface-border px-3 py-3 text-right tabular">{peso(totals.salesAmount)}</td>
+                  <td className="bg-brand-50/60 px-3 py-3 text-right tabular text-brand-700">{peso(shareTotal)}</td>
+                  <td className="bg-gold-50/70 px-3 py-3 text-right tabular text-gold-600">{peso(remitTotal)}</td>
                   <td className="border-l border-surface-border px-3 py-3 text-right tabular">{qty(totals.shareUnits)}</td>
                   <td />
                 </tr>
@@ -600,36 +728,57 @@ export default function DailySaleEditorPage() {
         </Card>
 
         {/* Summary */}
-        <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
+        <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+          <Card>
+            <CardHeader title="Remittance by consignee" description="Money to hand over to each consignee for this day" icon={<HandCoins />} />
+            {byConsignee.length === 0 ? (
+              <CardBody className="text-sm text-ink-muted">No consigned items on this sheet yet.</CardBody>
+            ) : (
+              <div className="scrollbar-thin overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-surface-page/80 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-muted">
+                    <tr>
+                      <th className="px-4 py-2.5 text-left">Consignee</th>
+                      <th className="px-4 py-2.5 text-right">Items</th>
+                      <th className="px-4 py-2.5 text-right">Pcs sold</th>
+                      <th className="px-4 py-2.5 text-right">Sales</th>
+                      <th className="px-4 py-2.5 text-right">Canteen share</th>
+                      <th className="px-4 py-2.5 text-right">To remit</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {byConsignee.map((g) => (
+                      <tr key={g.consignee} className="border-t border-surface-border">
+                        <td className="px-4 py-2.5 font-medium">{g.consignee}</td>
+                        <td className="px-4 py-2.5 text-right tabular">{g.items}</td>
+                        <td className="px-4 py-2.5 text-right tabular">{qty(g.sold)}</td>
+                        <td className="px-4 py-2.5 text-right tabular">{peso(g.sales)}</td>
+                        <td className="px-4 py-2.5 text-right tabular text-brand-700">{peso(g.share)}</td>
+                        <td className="px-4 py-2.5 text-right font-semibold tabular text-gold-600">{peso(g.remit)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 border-surface-border bg-surface-page font-semibold">
+                      <td className="px-4 py-2.5" colSpan={3}>Total</td>
+                      <td className="px-4 py-2.5 text-right tabular">{peso(byConsignee.reduce((a, g) => a + g.sales, 0))}</td>
+                      <td className="px-4 py-2.5 text-right tabular text-brand-700">{peso(byConsignee.reduce((a, g) => a + g.share, 0))}</td>
+                      <td className="px-4 py-2.5 text-right tabular text-gold-600">{peso(remitTotal)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+            {locked && sale && (
+              <div className="flex items-center gap-2 border-t border-surface-border px-5 py-3 text-xs text-brand-700">
+                <Lock className="size-3.5" /> Database totals: {peso(sale.sales_amount)} sales · {peso(sale.canteen_shares)} canteen shares · {peso(sale.remit_total)} remittance
+              </div>
+            )}
+          </Card>
           <Card>
             <CardHeader title="Remarks" />
             <CardBody>
               <Textarea value={remarks} disabled={!editable} onChange={(e) => { setRemarks(e.target.value); setDirty(true); }} placeholder="Notes for this day (optional)" rows={4} />
-            </CardBody>
-          </Card>
-          <Card>
-            <CardHeader title="Daily sales summary" description={locked ? 'Saved totals (calculated by the database)' : 'Recalculated as you type; saved totals are calculated by the database'} />
-            <CardBody>
-              <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                {[
-                  ['Total units sold', qty(totals.unitsSold)],
-                  ['Total sales amount', peso(totals.salesAmount)],
-                  ['Total unsold units', qty(totals.unsoldUnits)],
-                  ['Total unsold amount', peso(totals.unsoldAmount)],
-                  ['Total share quantity', qty(totals.shareUnits)],
-                  [`Daily canteen shares (× ₱${shareRate.toFixed(2)})`, peso(canteenShares(totals.shareUnits, shareRate))],
-                ].map(([label, value]) => (
-                  <div key={label} className="rounded-xl border border-surface-border p-3">
-                    <dt className="text-xs text-ink-muted">{label}</dt>
-                    <dd className="tabular mt-1 text-lg font-semibold">{value}</dd>
-                  </div>
-                ))}
-              </dl>
-              {locked && sale && (
-                <div className="mt-4 flex items-center gap-2 text-xs text-brand-700">
-                  <Lock className="size-3.5" /> Database totals: {peso(sale.sales_amount)} sales · {qty(sale.units_sold)} units · {peso(sale.canteen_shares)} canteen shares
-                </div>
-              )}
             </CardBody>
           </Card>
         </div>
