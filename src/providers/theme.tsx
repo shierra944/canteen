@@ -53,5 +53,5 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
 export const useTheme = () => useContext(ThemeContext);
 
-/** True while the dark palette is on screen (used for chart colours). */
+/** True while the dark palette is on screen (used for chart colors). */
 export const isDarkNow = () => typeof document !== 'undefined' && document.documentElement.classList.contains('dark');

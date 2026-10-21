@@ -1113,7 +1113,7 @@ export default function DailySaleEditorPage() {
             <Checkbox
               checked={exception?.allow ?? false}
               onChange={(v) => setException((s) => s && { ...s, allow: v })}
-              label="Authorise a documented negative-stock exception"
+              label="Authorize a documented negative-stock exception"
               description="Use only when stock was physically available but not yet encoded (e.g. an unrecorded delivery)."
             />
             <Field label="Justification" required>
@@ -1122,7 +1122,7 @@ export default function DailySaleEditorPage() {
           </div>
         ) : (
           <Callout tone="warning" title="What to do">
-            Record the stock-in for the delivery first, or correct the sold quantity. An administrator can authorise an exception.
+            Record the stock-in for the delivery first, or correct the sold quantity. An administrator can authorize an exception.
           </Callout>
         )}
       </ConfirmDialog>

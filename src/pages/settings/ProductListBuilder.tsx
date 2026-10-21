@@ -90,7 +90,7 @@ export function ProductListBuilder({ products }: { products: DerivedProduct[] })
   return (
     <div className="space-y-4">
       <Callout tone="info" title={`${products.length} products found in the DAILY SALES sheet`}>
-        Each item and consignee appears once, with its most recent selling price. Spelling variations were merged. Untick anything you don't want, fix names or prices, and add cost prices if you know them. Items with a consignee are marked <b>consigned</b> (not stock-tracked); switch canteen-owned goods to <b>Canteen stock</b>.
+        Each item and consignee appears once, with its most recent selling price. Spelling variations were merged. Uncheck anything you don't want, fix names or prices, and add cost prices if you know them. Items with a consignee are marked <b>consigned</b> (not stock-tracked); switch canteen-owned goods to <b>Canteen stock</b>.
       </Callout>
       <div className="overflow-hidden rounded-xl border border-surface-border">
         <div className="scrollbar-thin max-h-[560px] overflow-auto">

@@ -95,7 +95,7 @@ const axisProps = {
 } as const;
 
 export function FinancialOverviewChart({ data }: { data: SeriesPoint[] }) {
-  useTheme(); // re-render with the theme's chart colours
+  useTheme(); // re-render with the theme's chart colors
   const hasData = useMemo(() => data.some((d) => d.gross || d.expenses || d.net), [data]);
   if (!hasData) return <ChartEmpty />;
   return (
@@ -124,7 +124,7 @@ export function FinancialOverviewChart({ data }: { data: SeriesPoint[] }) {
 }
 
 export function SalesBarChart({ data, dataKey = 'gross', name = 'Gross sales' }: { data: SeriesPoint[]; dataKey?: keyof SeriesPoint; name?: string }) {
-  useTheme(); // re-render with the theme's chart colours
+  useTheme(); // re-render with the theme's chart colors
   if (!data.some((d) => toNumber(d[dataKey]) !== 0)) return <ChartEmpty />;
   return (
     <ResponsiveContainer width="100%" height={260}>

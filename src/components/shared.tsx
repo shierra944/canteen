@@ -11,7 +11,7 @@ import { Field, Textarea } from './ui/form';
 const CHART_LIGHT = { sales: '#087A35', expenses: '#B8930C', net: '#3D6A9E', deficit: '#B83E3A', grid: '#E4EAE5', axis: '#6B756D' };
 // brighter on the dark theme so lines and bars stay legible
 const CHART_DARK = { sales: '#3FBF6E', expenses: '#E0B52A', net: '#7AA7DC', deficit: '#E8706B', grid: '#1D3628', axis: '#A9B1A4' };
-/** Chart colours for the current theme (read at render time). */
+/** Chart colors for the current theme (read at render time). */
 export const CHART = Object.defineProperties({} as typeof CHART_LIGHT, Object.fromEntries(
   (Object.keys(CHART_LIGHT) as (keyof typeof CHART_LIGHT)[]).map((k) => [k, { enumerable: true, get: () => (isDarkNow() ? CHART_DARK : CHART_LIGHT)[k] }]),
 ));

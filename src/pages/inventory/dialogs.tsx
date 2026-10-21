@@ -508,10 +508,10 @@ export function AdjustDialog({ open, onOpenChange, item }: { open: boolean; onOp
         {after < 0 && quantity !== '' && (
           can('inventory.negative_exception') ? (
             <Callout tone="warning" title="This would make stock negative">
-              <Checkbox checked={allowNegative} onChange={setAllowNegative} label="Authorise a documented negative-stock exception" description="The reason above is recorded as the justification." />
+              <Checkbox checked={allowNegative} onChange={setAllowNegative} label="Authorize a documented negative-stock exception" description="The reason above is recorded as the justification." />
             </Callout>
           ) : (
-            <Callout tone="danger">Stock cannot go below zero. Only an administrator can authorise an exception.</Callout>
+            <Callout tone="danger">Stock cannot go below zero. Only an administrator can authorize an exception.</Callout>
           )
         )}
       </div>
