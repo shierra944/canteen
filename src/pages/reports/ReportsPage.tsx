@@ -51,7 +51,7 @@ export default function ReportsPage() {
   return (
     <>
       <div className="no-print">
-        <PageHeader title="Financial Reports" description="Official canteen reports recalculated from the underlying daily sales and transactions." />
+        <PageHeader title="Reports" description="Official canteen reports recalculated from the underlying daily sales and transactions." />
         <Card className="mb-5">
           <div className="flex flex-wrap items-end gap-3 px-5 py-4">
             <FilterField label="Reporting period">

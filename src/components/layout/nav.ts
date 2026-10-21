@@ -23,7 +23,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/inventory', label: 'Products & Consignees', icon: Boxes, anyOf: [] },
   { to: '/daily-sales', label: 'Daily Sales', icon: ShoppingBasket, anyOf: ['sales.record', 'reports.view'] },
   { to: '/finance', label: 'Expenses & Other Sales', icon: Receipt, anyOf: ['finance.record', 'reports.view'] },
-  { to: '/reports', label: 'Financial Reports', icon: BarChart3, anyOf: ['reports.view'] },
+  { to: '/reports', label: 'Reports', icon: BarChart3, anyOf: ['reports.view'] },
   { to: '/transactions', label: 'Transactions', icon: ArrowLeftRight, anyOf: ['reports.view', 'audit.view'] },
   { to: '/users', label: 'User Management', icon: Users, anyOf: ['users.manage'] },
   { to: '/settings', label: 'Settings', icon: Settings, anyOf: ['settings.manage', 'import.run'] },
