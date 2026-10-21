@@ -4,10 +4,9 @@ import { useQuery } from '@tanstack/react-query';
 import {
   AlertTriangle,
   ArrowRight,
-  Banknote,
   Boxes,
   CircleCheck,
-  CircleDollarSign,
+  PhilippinePeso,
   PackageX,
   Plus,
   Receipt,
@@ -102,7 +101,7 @@ export default function DashboardPage() {
             <StatCard
               label="Other Sales"
               value={peso(m.other_shares)}
-              icon={<CircleDollarSign />}
+              icon={<PhilippinePeso />}
               sub={
                 toNumber(m.included_sales) > 0
                   ? `${peso(m.included_sales)} already in daily sales — not counted again`
@@ -311,7 +310,7 @@ function RecentTransactions() {
     <Card>
       <CardHeader
         title="Recent transactions"
-        icon={<Banknote />}
+        icon={<PhilippinePeso />}
         actions={
           <>
             {can('sales.record') && (

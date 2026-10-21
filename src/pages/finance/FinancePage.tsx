@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { CircleDollarSign, MinusCircle, MoreHorizontal, Pencil, PiggyBank, Plus, Receipt, Search, Undo2, Wallet } from 'lucide-react';
+import { PhilippinePeso, MinusCircle, MoreHorizontal, Pencil, PiggyBank, Plus, Receipt, Search, Undo2, Wallet } from 'lucide-react';
 import { useAuth } from '@/providers/auth';
 import { useApp } from '@/providers/app';
 import { useQuery } from '@tanstack/react-query';
@@ -159,7 +159,7 @@ export default function FinancePage() {
               <span className="text-xs text-ink-muted">{describePeriod(period.start, period.end)}</span>
             </div>
             <div className="grid gap-4 sm:grid-cols-3">
-              <StatCard label="Other sales (shares)" value={peso(totals.sales)} icon={<CircleDollarSign />} tone="positive" sub={totals.included ? `${peso(totals.included)} already in daily sales — excluded` : 'Added to Gross Sales'} />
+              <StatCard label="Other sales (shares)" value={peso(totals.sales)} icon={<PhilippinePeso />} tone="positive" sub={totals.included ? `${peso(totals.included)} already in daily sales — excluded` : 'Added to Gross Sales'} />
               <StatCard label="Expenses" value={peso(totals.expenses)} icon={<Wallet />} sub="Deducted in Net Sales" />
               <StatCard label="Deficit" value={peso(totals.deficit)} icon={<MinusCircle />} tone={totals.deficit ? 'negative' : 'default'} sub="Recorded separately from expenses" />
             </div>
