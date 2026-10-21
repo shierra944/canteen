@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Archive, ArchiveRestore, Boxes, FileSpreadsheet, UserRound, Eye, MoreHorizontal, PackagePlus, Pencil, Plus, Search, SlidersHorizontal, Tags, Truck } from 'lucide-react';
 import { useAuth } from '@/providers/auth';
@@ -80,6 +80,15 @@ export default function InventoryPage() {
       /* storage unavailable — applies to this visit only */
     }
   };
+  const filterBarRef = useRef<HTMLDivElement>(null);
+  const [filterBarHeight, setFilterBarHeight] = useState(0);
+  useEffect(() => {
+    const el = filterBarRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setFilterBarHeight(el.offsetHeight));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [tab]);
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
     const rows = enriched.filter(
@@ -197,6 +206,7 @@ export default function InventoryPage() {
         </div>
 
         <Card>
+          <div ref={filterBarRef} className="rounded-t-2xl bg-white lg:sticky lg:top-16 lg:z-20 lg:shadow-[0_1px_0_#E4EAE5]">
           <FilterBar
             active={filtersActive}
             onClear={() => {
@@ -256,6 +266,7 @@ export default function InventoryPage() {
               </Select>
             </FilterField>
           </FilterBar>
+          </div>
 
           {error ? (
             <ErrorState error={error} onRetry={() => refetch()} />
@@ -283,7 +294,7 @@ export default function InventoryPage() {
             />
           ) : (
             <>
-              <Table>
+              <Table stickyHeader style={{ '--sticky-top': `${64 + filterBarHeight}px` } as React.CSSProperties}>
                 <THead>
                   <tr>
                     <SortTH label="Product" sortKey="name" sort={sort} onSort={setSort} />

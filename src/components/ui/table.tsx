@@ -3,9 +3,20 @@ import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight } from 'luci
 import { cn } from '@/lib/utils';
 import { Button } from './button';
 
-export function Table({ className, children, ...props }: HTMLAttributes<HTMLTableElement>) {
+/**
+ * stickyHeader: on large screens the column headings stay visible while the
+ * page scrolls. They stick at the CSS variable --sticky-top (default: just
+ * under the 64px top bar). The horizontal-scroll wrapper is dropped on large
+ * screens because it would stop sticky positioning from working.
+ */
+export function Table({ className, children, stickyHeader, ...props }: HTMLAttributes<HTMLTableElement> & { stickyHeader?: boolean }) {
   return (
-    <div className="scrollbar-thin w-full overflow-x-auto">
+    <div
+      className={cn(
+        'scrollbar-thin w-full overflow-x-auto',
+        stickyHeader && 'lg:overflow-visible lg:[&_thead_th]:sticky lg:[&_thead_th]:top-[var(--sticky-top,4rem)] lg:[&_thead_th]:z-10 lg:[&_thead_th]:bg-[#F7F9F7]',
+      )}
+    >
       <table className={cn('w-full border-collapse text-sm', className)} {...props}>
         {children}
       </table>
