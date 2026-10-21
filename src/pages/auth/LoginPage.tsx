@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from 'react';
-import { Eye, EyeOff, Lock, LogOut, Mail, ShieldCheck } from 'lucide-react';
+import { Eye, EyeOff, Lock, LogIn, LogOut, Mail, ShieldCheck } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useAuth } from '@/providers/auth';
 import { Button } from '@/components/ui/button';
-import { Field, Input } from '@/components/ui/form';
 import { Callout } from '@/components/ui/feedback';
 
 function Brand() {
@@ -39,71 +39,78 @@ export function LoginPage() {
   }
 
   return (
-    <div className="grid min-h-screen lg:grid-cols-[1.05fr_1fr]">
-      {/* Brand panel */}
-      <div className="relative hidden overflow-hidden bg-brand-700 lg:block">
-        <div className="absolute inset-0 opacity-[0.07]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, #fff 1px, transparent 0)', backgroundSize: '22px 22px' }} />
-        <div className="absolute -right-24 -top-24 size-[420px] rounded-full bg-brand-600/60" />
-        <div className="absolute -bottom-32 -left-20 size-[360px] rounded-full bg-brand-800/70" />
-        <div className="relative flex h-full flex-col justify-between p-12 text-white">
+    <div
+      className="relative min-h-screen bg-[#f4f7f2]"
+      style={{ backgroundImage: 'repeating-linear-gradient(to bottom, transparent 0 31px, rgba(8,122,53,0.06) 31px 32px)' }}
+    >
+      {/* Official band */}
+      <div className="absolute inset-x-0 top-0 h-[300px] bg-brand-700">
+        <div className="absolute inset-x-0 bottom-0 h-1 bg-gold-400" />
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-5 pt-6 text-white">
           <div className="flex items-center gap-3">
-            <img src="/logos/qnhs.png" alt="" className="size-12 rounded-full bg-white p-0.5" />
-            <div className="text-sm font-semibold tracking-wide text-white/90">Quiot National High School</div>
-          </div>
-          <div className="max-w-md">
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-gold-300 ring-1 ring-inset ring-white/15">
-              <ShieldCheck className="size-3.5" /> Schools Division of Cebu City
+            <img src="/logos/deped.png" alt="DepEd seal" className="size-10 rounded-full bg-white p-0.5" />
+            <div className="leading-tight">
+              <div className="text-[13px] font-semibold">Department of Education</div>
+              <div className="text-[11px] text-white/70">Schools Division of Cebu City · Region VII</div>
             </div>
-            <h2 className="text-[34px] font-semibold leading-tight tracking-tight">
-              Accurate canteen records,
-              <br />
-              <span className="text-gold-300">every school day.</span>
-            </h2>
-            <p className="mt-4 text-[15px] leading-relaxed text-white/70">
-              Daily sales, inventory, expenses and fund allocation in one place, with official reports ready for the principal's signature.
-            </p>
           </div>
-          <div className="text-xs text-white/45">School ID 312515 · Sitio Bogo, Quiot, Cebu City</div>
+          <img src="/logos/bagong-pilipinas.jpg" alt="Bagong Pilipinas" className="hidden size-10 rounded-full bg-white object-contain p-0.5 sm:block" />
         </div>
       </div>
 
-      {/* Form */}
-      <div className="flex items-center justify-center bg-surface-page px-5 py-12">
-        <div className="w-full max-w-[400px]">
-          <div className="mb-8 lg:hidden">
-            <Brand />
+      <main className="relative flex min-h-screen flex-col items-center px-5 pb-10 pt-28">
+        <div className="w-full max-w-[420px] rounded-2xl border border-surface-border bg-white px-7 pb-8 shadow-overlay sm:px-9">
+          <img src="/logos/qnhs.png" alt="Quiot National High School logo" className="mx-auto -mt-11 size-[88px] rounded-full bg-white p-1 shadow-md ring-4 ring-white" />
+          <div className="mt-4 text-center">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brand-700">Quiot National High School</div>
+            <h1 className="mt-1.5 text-[22px] font-semibold tracking-tight text-ink">Canteen Management System</h1>
+            <p className="mt-1 text-[13px] text-ink-muted">Sign in with the account issued by the school administrator.</p>
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight text-ink">Sign in</h1>
-          <p className="mt-1.5 text-sm text-ink-muted">Use the account issued to you by the school administrator.</p>
-          <form onSubmit={onSubmit} className="mt-8 space-y-4">
+
+          <form onSubmit={onSubmit} className="mt-7 space-y-4" noValidate>
             {error && <Callout tone="danger">{error}</Callout>}
-            <Field label="Email address" htmlFor="email">
-              <div className="relative">
-                <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-muted" />
-                <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="pl-9" placeholder="name@deped.gov.ph" />
-              </div>
-            </Field>
-            <Field label="Password" htmlFor="password">
-              <div className="relative">
-                <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-muted" />
-                <Input id="password" type={show ? 'text' : 'password'} autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} className="px-9" />
-                <button type="button" onClick={() => setShow((s) => !s)} className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-ink-muted hover:text-ink" aria-label={show ? 'Hide password' : 'Show password'}>
+            <label className="block">
+              <span className="mb-1.5 block text-[13px] font-medium text-ink">Email address</span>
+              <span className="relative block">
+                <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-ink-muted" />
+                <input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@deped.gov.ph" className={loginInput} />
+              </span>
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-[13px] font-medium text-ink">Password</span>
+              <span className="relative block">
+                <Lock className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-ink-muted" />
+                <input id="password" type={show ? 'text' : 'password'} autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} className={cn(loginInput, 'pr-11')} />
+                <button type="button" onClick={() => setShow((v) => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-ink-muted hover:bg-surface-page hover:text-ink" aria-label={show ? 'Hide password' : 'Show password'}>
                   {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                 </button>
-              </div>
-            </Field>
-            <Button type="submit" size="lg" className="w-full" loading={busy}>
-              Sign in
+              </span>
+            </label>
+            <Button type="submit" size="lg" className="mt-2 w-full" loading={busy} disabled={!email.trim() || !password}>
+              <LogIn /> Sign in
             </Button>
           </form>
-          <p className="mt-8 text-center text-xs text-ink-muted">
-            No account? Accounts are created by the administrator — there is no public registration.
-          </p>
+
+          <div className="mt-7 flex items-start gap-2.5 rounded-xl bg-surface-page px-3.5 py-3 text-xs leading-relaxed text-ink-muted">
+            <ShieldCheck className="mt-px size-4 shrink-0 text-brand-600" />
+            There is no public registration. Accounts are created by the administrator.
+          </div>
         </div>
-      </div>
+
+        <div className="mt-8 flex flex-col items-center gap-3 text-center">
+          <div className="flex items-center gap-4 opacity-80">
+            <img src="/logos/deped-wordmark.webp" alt="DepEd" className="h-7 object-contain" />
+            <img src="/logos/matatag.png" alt="MATATAG" className="h-7 object-contain" />
+          </div>
+          <div className="text-xs text-ink-muted">School ID 312515 · Sitio Bogo, Quiot, Cebu City</div>
+        </div>
+      </main>
     </div>
   );
 }
+
+const loginInput =
+  'h-11 w-full rounded-xl border border-surface-border bg-white pl-10 pr-3 text-sm text-ink transition-colors placeholder:text-ink-soft hover:border-[#cfd9d2] focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/15';
 
 export function InactiveAccount() {
   const { signOut, profile } = useAuth();
