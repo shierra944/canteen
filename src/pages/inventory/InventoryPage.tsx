@@ -113,8 +113,8 @@ export default function InventoryPage() {
     <>
       <div className="no-print">
         <PageHeader
-          title="Inventory"
-          description="Products sold through the canteen. Stock changes only through stock-in, sales and recorded adjustments."
+          title="Products & Consignees"
+          description="Everything sold through the canteen and the consignees who supply it. Stock of canteen-owned items changes only through stock-in, sales and recorded adjustments."
           actions={
             <>
               <ExportMenu report={report} disabled={filtered.length === 0} />

@@ -181,7 +181,7 @@ export function ItemDialog({
           <Input value={f.name} onChange={set('name')} aria-invalid={!!errors.name} autoFocus placeholder={f.is_consigned ? 'e.g. Hot cake' : 'e.g. Bottled water – small'} />
         </Field>
         {f.is_consigned && (
-          <Field label="Consignee" required error={errors.consignee_id} hint="Manage the list under Inventory → Consignees.">
+          <Field label="Consignee" required error={errors.consignee_id} hint="Manage the list under Products & Consignees → Consignees.">
             <Select value={f.consignee_id} onChange={set('consignee_id')} aria-invalid={!!errors.consignee_id}>
               <option value="">— Select consignee —</option>
               {consignees.filter((c) => c.is_active || c.id === f.consignee_id).map((c) => (

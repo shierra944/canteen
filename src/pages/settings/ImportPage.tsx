@@ -195,7 +195,7 @@ function Wizard({ onStaged }: { onStaged: (batchIds: string[]) => void }) {
               <div className="grid gap-3 md:grid-cols-2">
                 <button onClick={() => setProducts(deriveProductList(parseDailySales(grid)))} className="rounded-xl border border-surface-border p-4 text-left hover:border-brand-500 hover:bg-brand-50/40">
                   <div className="text-sm font-semibold">1. Create product list</div>
-                  <div className="mt-1 text-xs leading-relaxed text-ink-muted">Build Inventory from the items, consignees and selling prices in this sheet. Do this first.</div>
+                  <div className="mt-1 text-xs leading-relaxed text-ink-muted">Fill Products & Consignees with the items, consignees and selling prices in this sheet. Do this first.</div>
                 </button>
                 <button onClick={parse} className="rounded-xl border border-surface-border p-4 text-left hover:border-brand-500 hover:bg-brand-50/40">
                   <div className="text-sm font-semibold">2. Import historical daily sales</div>

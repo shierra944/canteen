@@ -49,7 +49,7 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
       ]);
       const out: Result[] = [];
       (items.data ?? []).forEach((i: { id: string; name: string; item_code: string; quantity_on_hand: number; unit: string }) =>
-        out.push({ key: 'i' + i.id, group: 'Inventory', label: i.name, sub: `${i.item_code} · ${Number(i.quantity_on_hand)} ${i.unit} on hand`, to: `/inventory/${i.id}`, icon: Boxes }),
+        out.push({ key: 'i' + i.id, group: 'Products', label: i.name, sub: `${i.item_code} · ${Number(i.quantity_on_hand)} ${i.unit} on hand`, to: `/inventory/${i.id}`, icon: Boxes }),
       );
       (fin.data ?? []).forEach((f: { id: string; description: string; transaction_date: string; amount: number; transaction_type: string }) =>
         out.push({ key: 'f' + f.id, group: 'Expenses & other sales', label: f.description, sub: `${formatDate(f.transaction_date)} · ${f.transaction_type} · ${peso(f.amount)}`, to: `/finance?txn=${f.id}`, icon: Receipt }),

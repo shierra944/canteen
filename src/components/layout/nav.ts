@@ -20,7 +20,7 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, anyOf: [] },
-  { to: '/inventory', label: 'Inventory', icon: Boxes, anyOf: [] },
+  { to: '/inventory', label: 'Products & Consignees', icon: Boxes, anyOf: [] },
   { to: '/daily-sales', label: 'Daily Sales', icon: ShoppingBasket, anyOf: ['sales.record', 'reports.view'] },
   { to: '/finance', label: 'Expenses & Other Sales', icon: Receipt, anyOf: ['finance.record', 'reports.view'] },
   { to: '/reports', label: 'Financial Reports', icon: BarChart3, anyOf: ['reports.view'] },
@@ -35,7 +35,7 @@ export function canSee(item: { anyOf: string[] }, can: (p: string) => boolean) {
 
 export function pageMeta(pathname: string): { title: string; crumbs: string[] } {
   if (pathname === '/') return { title: 'Dashboard', crumbs: ['Dashboard'] };
-  if (pathname.startsWith('/inventory/')) return { title: 'Item Details', crumbs: ['Inventory', 'Item details'] };
+  if (pathname.startsWith('/inventory/')) return { title: 'Product Details', crumbs: ['Products & Consignees', 'Product details'] };
   if (pathname === '/daily-sales/new') return { title: 'New Daily Sales Record', crumbs: ['Daily Sales', 'New record'] };
   if (pathname.startsWith('/daily-sales/')) return { title: 'Daily Sales Record', crumbs: ['Daily Sales', 'Record'] };
   if (pathname.startsWith('/settings/import')) return { title: 'Excel Import', crumbs: ['Settings', 'Excel import'] };

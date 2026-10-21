@@ -77,12 +77,12 @@ export function ProductListBuilder({ products }: { products: DerivedProduct[] })
         title="Product list created"
         action={
           <Button asChild size="sm">
-            <Link to="/inventory">Open inventory</Link>
+            <Link to="/inventory">Open Products & Consignees</Link>
           </Button>
         }
       >
         {done.created} products and {done.new_consignees} consignees were added
-        {done.skipped ? `; ${done.skipped} already existed and were skipped` : ''}. Add cost prices and categories anytime from Inventory.
+        {done.skipped ? `; ${done.skipped} already existed and were skipped` : ''}. Add cost prices and categories anytime from Products & Consignees.
       </Callout>
     );
   }

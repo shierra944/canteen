@@ -398,7 +398,7 @@ export default function DailySaleEditorPage() {
   }
 
   // Typed (not yet saved) products/consignees appear in the lists right away;
-  // the database adds them to Inventory / Consignees when the sheet is saved.
+  // the database adds them to the product / consignee lists when the sheet is saved.
   const pendingItems = useMemo(() => {
     const seen = new Set(inventory.map((i) => `${i.name.trim().toLowerCase()}|${(i.consignee_name ?? '').trim().toLowerCase()}`));
     const out = new Map<string, Line>();
