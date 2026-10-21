@@ -186,8 +186,7 @@ export function HistoryPanel({
                   </th>
                   <th className="px-2 py-2 text-left">Item</th>
                   <th className="px-2 py-2 text-left">Consignee</th>
-                  <th className="px-2 py-2 text-right">Cost</th>
-                  <th className="px-2 py-2 text-right">Selling</th>
+                  <th className="px-2 py-2 text-right">Price per piece</th>
                   <th className="px-2 py-2 text-right">Total qty</th>
                   {mode === 'items' && <th className="px-4 py-2 text-left">Used</th>}
                 </tr>
@@ -211,7 +210,6 @@ export function HistoryPanel({
                     </td>
                     <td className="px-2 py-2 font-medium">{r.line.item_name}</td>
                     <td className="px-2 py-2 text-ink-muted">{r.line.is_canteen_stock ? 'Canteen stock' : r.line.consignee || '—'}</td>
-                    <td className="px-2 py-2 text-right tabular">{r.line.cost_price === null ? '—' : peso(r.line.cost_price)}</td>
                     <td className="px-2 py-2 text-right tabular">{peso(r.line.unit_price)}</td>
                     <td className="px-2 py-2 text-right tabular text-ink-muted">{qty(r.line.total_quantity)}</td>
                     {mode === 'items' && <td className="px-4 py-2 text-xs text-ink-muted">{r.info}</td>}

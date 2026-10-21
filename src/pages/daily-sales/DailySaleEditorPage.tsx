@@ -238,7 +238,8 @@ export default function DailySaleEditorPage() {
         consignee: h.consignee,
         consigneeManual: Boolean(h.consignee) && !consigneeNames.has(h.consignee.trim().toLowerCase()),
         unit_price: String(h.unit_price),
-        cost_price: h.is_canteen_stock || h.cost_price === null ? '' : String(h.cost_price),
+        // cost comes from the product record (the database uses the same value)
+        cost_price: linked && inv!.is_consigned && toNumber(inv!.unit_cost) > 0 ? num(inv!.unit_cost) : '',
         is_canteen_stock: linked ? !inv!.is_consigned : false,
         total_quantity: total,
       };
@@ -291,7 +292,7 @@ export default function DailySaleEditorPage() {
     if (!meaningful.includes(l)) return null;
     if (!l.item_name.trim()) return 'Item name is required.';
     if (l.unit_price === '') return 'Selling price is required.';
-    if (!l.is_canteen_stock && l.cost_price !== '' && Number(l.cost_price) > n(l.unit_price)) return 'Cost price is higher than the selling price.';
+    if (!l.is_canteen_stock && l.cost_price !== '' && Number(l.cost_price) > n(l.unit_price)) return `Price is below this product's cost price (₱${l.cost_price}). Check the price or the cost in Products & Consignees.`;
     return calcLine(numericLines[i]).error;
   });
   const stockWarnings = lines.map((l) => {
@@ -305,7 +306,7 @@ export default function DailySaleEditorPage() {
   const emptyInputs = meaningful.reduce(
     (a, l) =>
       a +
-      [l.item_name.trim(), l.unit_price, l.total_quantity, l.sold_quantity, l.is_canteen_stock ? 'x' : l.cost_price].filter((v) => v === '').length,
+      [l.item_name.trim(), l.unit_price, l.total_quantity, l.sold_quantity].filter((v) => v === '').length,
     0,
   );
   const missingCost = meaningful.filter((l) => !l.is_canteen_stock && l.cost_price === '').length;
@@ -330,7 +331,6 @@ export default function DailySaleEditorPage() {
         unit_price: n(l.unit_price),
         sold_quantity: n(l.sold_quantity),
         share_quantity: n(l.share_quantity),
-        cost_price: l.is_canteen_stock || l.cost_price === '' ? null : Number(l.cost_price),
       }));
       const res = await rpc<{ id: string; version: number; new_products?: number; new_consignees?: number }>('save_daily_sale', {
         p_id: id ?? null,
@@ -508,8 +508,7 @@ export default function DailySaleEditorPage() {
       { key: 'no', header: 'No.', width: 6 },
       { key: 'item', header: 'Item', width: 26 },
       { key: 'consignee', header: 'Consignee', width: 16 },
-      { key: 'cost', header: 'Cost Price', format: 'peso', width: 11 },
-      { key: 'price', header: 'Selling Price', format: 'peso', width: 11 },
+      { key: 'price', header: 'Price per Piece', format: 'peso', width: 12 },
       { key: 'total', header: 'Total Qty', format: 'qty', width: 9 },
       { key: 'sold', header: 'Sold', format: 'qty', width: 8 },
       { key: 'unsold', header: 'Unsold', format: 'qty', width: 8 },
@@ -526,7 +525,6 @@ export default function DailySaleEditorPage() {
           no: idx + 1,
           item: l.item_name,
           consignee: l.is_canteen_stock ? 'Canteen stock' : l.consignee,
-          cost: l.is_canteen_stock || l.cost_price === '' ? null : Number(l.cost_price),
           price: n(l.unit_price),
           total: n(l.total_quantity),
           sold: n(l.sold_quantity),
@@ -730,7 +728,7 @@ export default function DailySaleEditorPage() {
             <Card>
               <CardHeader
                 title="Reuse previous entries"
-                description="Pick a previous day and reuse its items, consignees, cost and selling prices — or choose from every item used recently. Quantities are left for you to enter unless you tick “Also copy total quantity”."
+                description="Pick a previous day and reuse its items, consignees and prices — or choose from every item used recently. Quantities are left for you to enter unless you tick “Also copy total quantity”."
                 icon={<History />}
               />
               {editable ? (
@@ -745,7 +743,7 @@ export default function DailySaleEditorPage() {
             <Card>
               <CardHeader
                 title="Daily sales sheet"
-                description={`Sales = Sold × Selling price · Unsold = Total − Sold · Canteen share = (Selling − Cost) × Sold, or ₱${shareRate.toFixed(2)} × Sold without a cost price · Remit = Sales − Canteen share`}
+                description={`Sales = Sold × Price per piece · Unsold = Total − Sold · Canteen share = (Price − product cost price) × Sold, or ₱${shareRate.toFixed(2)} × Sold when the product has no cost price · Remit = Sales − Canteen share`}
                 actions={
                   editable && (
                     <>
@@ -771,7 +769,7 @@ export default function DailySaleEditorPage() {
                       <th rowSpan={2} className="w-10 border-b border-surface-border px-3 py-2 text-left">No.</th>
                       <th rowSpan={2} className="border-b border-surface-border px-2 py-2 text-left">Product</th>
                       <th rowSpan={2} className="border-b border-surface-border px-2 py-2 text-left">Consignee</th>
-                      <th colSpan={2} className="border-b border-l border-surface-border px-2 pt-2 text-center">Price per piece</th>
+                      <th rowSpan={2} className="border-b border-l border-surface-border px-2 py-2 text-right">Price per piece</th>
                       <th colSpan={3} className="border-b border-l border-surface-border px-2 pt-2 text-center">Quantity</th>
                       <th rowSpan={2} className="border-b border-l border-surface-border px-2 py-2 text-right">Sales</th>
                       <th rowSpan={2} className="border-b border-surface-border bg-brand-50/60 px-2 py-2 text-right text-brand-700">Canteen share</th>
@@ -782,8 +780,6 @@ export default function DailySaleEditorPage() {
                       <th rowSpan={2} className="w-20 border-b border-surface-border" />
                     </tr>
                     <tr className="text-[10px] font-semibold uppercase tracking-wider text-ink-soft">
-                      <th className="border-b border-l border-surface-border px-2 pb-1.5 text-right">Cost</th>
-                      <th className="border-b border-surface-border px-2 pb-1.5 text-right">Selling</th>
                       <th className="border-b border-l border-surface-border px-2 pb-1.5 text-right">Total</th>
                       <th className="border-b border-surface-border px-2 pb-1.5 text-right">Sold</th>
                       <th className="border-b border-surface-border px-2 pb-1.5 text-right" title="Total − Sold">Unsold</th>
@@ -794,7 +790,7 @@ export default function DailySaleEditorPage() {
                       const c = calcLine(numericLines[i]);
                       const err = lineErrors[i];
                       const warn = stockWarnings[i];
-                      // a started row needs product, cost, selling, total, sold and unsold
+                      // a started row needs product, price, total and sold
                       const started = meaningful.includes(l) && editable;
                       const need = (v: string) => started && v.trim() === '';
                       return (
@@ -859,27 +855,7 @@ export default function DailySaleEditorPage() {
                             )}
                           </td>
                           <td className="border-l border-surface-border px-1 py-1">
-                            {l.is_canteen_stock ? (
-                              <div className="px-2 py-2 text-right text-ink-soft" title="Canteen stock: no cost to remit">
-                                —
-                              </div>
-                            ) : (
-                              <input
-                                type="number"
-                                min={0}
-                                step="0.01"
-                                value={l.cost_price}
-                                disabled={!editable}
-                                onChange={(e) => edit(l.key, { cost_price: e.target.value })}
-                                className={inputCell(need(l.cost_price))}
-                                aria-required={started || undefined}
-                                title={need(l.cost_price) ? `Enter the cost price (what the consignee gets per piece). If left blank, the canteen gets ₱${shareRate.toFixed(2)} per piece.` : undefined}
-                                aria-label={`Cost price row ${i + 1}`}
-                              />
-                            )}
-                          </td>
-                          <td className="px-1 py-1">
-                            <input type="number" min={0} step="0.01" value={l.unit_price} disabled={!editable} onChange={(e) => edit(l.key, { unit_price: e.target.value })} className={inputCell(need(l.unit_price))} aria-required={started || undefined} title={need(l.unit_price) ? 'Required — enter the selling price' : undefined} aria-label={`Selling price row ${i + 1}`} />
+                            <input type="number" min={0} step="0.01" value={l.unit_price} disabled={!editable} onChange={(e) => edit(l.key, { unit_price: e.target.value })} className={inputCell(need(l.unit_price))} aria-required={started || undefined} title={need(l.unit_price) ? 'Required — enter the price per piece' : undefined} aria-label={`Price per piece row ${i + 1}`} />
                           </td>
                           <td className="border-l border-surface-border px-1 py-1">
                             <input type="number" min={0} step="any" value={l.total_quantity} disabled={!editable} onChange={(e) => edit(l.key, { total_quantity: e.target.value })} className={inputCell(need(l.total_quantity))} aria-required={started || undefined} title={need(l.total_quantity) ? 'Required — enter the quantity brought in' : undefined} aria-label={`Total quantity row ${i + 1}`} />
@@ -957,7 +933,7 @@ export default function DailySaleEditorPage() {
                   </tbody>
                   <tfoot>
                     <tr className="bg-surface-page font-semibold">
-                      <td colSpan={5} className="px-3 py-3 text-right text-xs uppercase tracking-wider text-ink-muted">
+                      <td colSpan={4} className="px-3 py-3 text-right text-xs uppercase tracking-wider text-ink-muted">
                         Totals
                       </td>
                       <td className="border-l border-surface-border px-3 py-3 text-right tabular">{qty(totals.totalQuantity)}</td>
@@ -1059,7 +1035,7 @@ export default function DailySaleEditorPage() {
             </p>
             {missingCost > 0 && (
               <p className="text-gold-600">
-                {missingCost} consigned item{missingCost === 1 ? ' has' : 's have'} no cost price — the canteen share for {missingCost === 1 ? 'it' : 'them'} will be ₱{shareRate.toFixed(2)} per piece.
+                {missingCost} consigned item{missingCost === 1 ? ' has' : 's have'} no cost price in Products & Consignees — the canteen share for {missingCost === 1 ? 'it' : 'them'} will be ₱{shareRate.toFixed(2)} per piece.
               </p>
             )}
             <p>Canteen-stock quantities sold will be deducted from inventory and the record will be locked. Corrections afterwards require an authorized reopen.</p>
