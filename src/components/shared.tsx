@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { CalendarRange, X } from 'lucide-react';
+import { ArrowRight, CalendarRange, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PERIOD_LABELS, resolvePeriod, type Period, type PeriodKey } from '@/lib/periods';
 import { useApp } from '@/providers/app';
@@ -43,7 +43,7 @@ export function StatCard({
       onClick={onClick}
       className={cn(
         'card flex flex-col p-5 text-left',
-        onClick && 'transition-shadow hover:shadow-raised focus-visible:ring-2',
+        onClick && 'group cursor-pointer transition-[box-shadow,border-color] hover:border-brand-200 hover:shadow-raised focus-visible:ring-2',
       )}
     >
       <div className="flex items-start justify-between gap-3">
@@ -59,6 +59,11 @@ export function StatCard({
         {value}
       </div>
       {sub && <div className="mt-1.5 text-xs leading-relaxed text-ink-muted">{sub}</div>}
+      {onClick && (
+        <span className="mt-auto inline-flex items-center gap-1 pt-3 text-xs font-medium text-brand-600 group-hover:text-brand-700">
+          View details <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+        </span>
+      )}
     </Comp>
   );
 }

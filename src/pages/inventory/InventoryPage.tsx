@@ -22,6 +22,7 @@ import type { OfficialReport } from '@/lib/export/report';
 import { AdjustDialog, ItemDialog, StockInDialog, useArchiveItem } from './dialogs';
 import { CategoriesDialog, SuppliersDialog } from './reference-dialogs';
 import { ConsigneesPanel } from './ConsigneesPanel';
+import { StockBreakdown } from '@/pages/dashboard/details';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useConsignees, useProductTotals } from '@/lib/queries';
 
@@ -38,7 +39,8 @@ export default function InventoryPage() {
   const { data: categories = [] } = useCategories();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
-  const [kind, setKind] = useState<'' | 'stock' | 'consigned'>('');
+  const [kind, setKind] = useState<'' | 'stock' | 'consigned'>(() => (['stock', 'consigned'].includes(params.get('kind') ?? '') ? (params.get('kind') as 'stock' | 'consigned') : ''));
+  const [valueDetail, setValueDetail] = useState(false);
   const [consigneeId, setConsigneeId] = useState('');
   const { data: consignees = [] } = useConsignees();
   const tab = params.get('tab') ?? 'products';
@@ -200,7 +202,7 @@ export default function InventoryPage() {
         </TabsContent>
         <TabsContent value="products">
         <div className="mb-6 grid gap-4 sm:grid-cols-3">
-          <StatCard label="Inventory value (filtered)" value={peso(totals.value)} icon={<Boxes />} sub={`Canteen stock only · ${filtered.length} items shown`} />
+          <StatCard label="Inventory value (filtered)" value={peso(totals.value)} icon={<Boxes />} sub={`Canteen stock only · ${filtered.length} items shown`} onClick={() => setValueDetail(true)} />
           <StatCard label="Low stock" value={totals.low} icon={<SlidersHorizontal />} tone={totals.low ? 'warning' : 'default'} onClick={() => setStatus('low_stock')} sub="At or below reorder level" />
           <StatCard label="Out of stock" value={totals.out} icon={<Archive />} tone={totals.out ? 'negative' : 'default'} onClick={() => setStatus('out_of_stock')} sub="Zero or negative quantity" />
         </div>
@@ -396,6 +398,7 @@ export default function InventoryPage() {
       <ItemDialog open={itemDialog.open} item={itemDialog.item} initialConsigneeId={itemDialog.consigneeId} onOpenChange={(o) => setItemDialog((s) => ({ ...s, open: o }))} />
       <StockInDialog open={stockIn.open} itemId={stockIn.itemId} onOpenChange={(o) => setStockIn((s) => ({ ...s, open: o }))} />
       <AdjustDialog open={Boolean(adjust)} item={adjust} onOpenChange={(o) => !o && setAdjust(null)} />
+      <StockBreakdown kind="inventory" open={valueDetail} onOpenChange={setValueDetail} />
       <CategoriesDialog open={refDialog === 'categories'} onOpenChange={(o) => !o && setRefDialog(null)} />
       <SuppliersDialog open={refDialog === 'suppliers'} onOpenChange={(o) => !o && setRefDialog(null)} />
       <ConfirmDialog

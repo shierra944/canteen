@@ -30,6 +30,7 @@ import { Callout, EmptyState, Skeleton } from '@/components/ui/feedback';
 import { Table, TD, TH, THead, TR } from '@/components/ui/table';
 import { AlertDot } from '@/components/layout/Topbar';
 import { bucketSeries, FinancialOverviewChart, Legend, SalesBarChart, type Granularity } from './charts';
+import { DashboardDetail, type DashboardDetailKind } from './details';
 
 function greeting() {
   const h = Number(new Intl.DateTimeFormat('en-PH', { hour: 'numeric', hour12: false, timeZone: 'Asia/Manila' }).format(new Date()));
@@ -41,6 +42,7 @@ export default function DashboardPage() {
   const { workingDate, activeSchoolYear } = useApp();
   const [period, setPeriod] = useState<Period>(() => resolvePeriod('this_month', workingDate));
   const [gran, setGran] = useState<Granularity>('daily');
+  const [detail, setDetail] = useState<DashboardDetailKind | null>(null);
   const finance = can('reports.view') || can('sales.record') || can('finance.record');
 
   const metrics = useDashboardMetrics(period.start, period.end);
@@ -96,8 +98,9 @@ export default function DashboardPage() {
               icon={<TrendingUp />}
               tone="positive"
               sub={<>Canteen shares {peso(m.daily_canteen_shares)} + other shares {peso(m.other_shares)}</>}
+              onClick={finance ? () => setDetail('gross') : undefined}
             />
-            <StatCard label="Total Expenses" value={peso(m.expenses)} icon={<Receipt />} sub={<>Deficits recorded separately: {peso(m.deficit)}</>} />
+            <StatCard label="Total Expenses" value={peso(m.expenses)} icon={<Receipt />} sub={<>Deficits recorded separately: {peso(m.deficit)}</>} onClick={finance ? () => setDetail('expenses') : undefined} />
             <StatCard
               label="Other Sales"
               value={peso(m.other_shares)}
@@ -107,6 +110,7 @@ export default function DashboardPage() {
                   ? `${peso(m.included_sales)} already in daily sales — not counted again`
                   : 'Separately recorded sales only'
               }
+              onClick={finance ? () => setDetail('other') : undefined}
             />
             <StatCard
               label="Net Sales"
@@ -114,22 +118,23 @@ export default function DashboardPage() {
               icon={<Scale />}
               tone={net < 0 ? 'negative' : 'positive'}
               sub={`Gross − Expenses${m.deduct_deficit_in_net ? ' − Deficit' : ''} (sales balance, not profit)`}
+              onClick={finance ? () => setDetail('net') : undefined}
             />
             <StatCard
               label="Total Inventory Value"
               value={peso(m.inventory_value)}
               icon={<Wallet />}
               sub={`${m.items_active} stock items${m.items_consigned ? ` · ${m.items_consigned} consigned (not valued)` : ''} · ${m.inventory_valuation === 'weighted_average' ? 'weighted-average cost' : 'latest cost'}`}
+              onClick={() => setDetail('inventory')}
             />
-            <Link to="/inventory?status=low_stock" className="contents">
-              <StatCard
-                label="Low-Stock Items"
-                value={qty(toNumber(m.items_low_stock) + toNumber(m.items_out_of_stock))}
-                icon={<AlertTriangle />}
-                tone={toNumber(m.items_low_stock) + toNumber(m.items_out_of_stock) > 0 ? 'warning' : 'default'}
-                sub={`${m.items_out_of_stock} out of stock · at or below reorder level`}
-              />
-            </Link>
+            <StatCard
+              label="Low-Stock Items"
+              value={qty(toNumber(m.items_low_stock) + toNumber(m.items_out_of_stock))}
+              icon={<AlertTriangle />}
+              tone={toNumber(m.items_low_stock) + toNumber(m.items_out_of_stock) > 0 ? 'warning' : 'default'}
+              sub={`${m.items_out_of_stock} out of stock · at or below reorder level`}
+              onClick={() => setDetail('stock')}
+            />
           </>
         )}
       </div>
@@ -180,6 +185,8 @@ export default function DashboardPage() {
       </div>
 
       {finance && <RecentTransactions />}
+
+      <DashboardDetail kind={detail} start={period.start} end={period.end} metrics={m} onClose={() => setDetail(null)} />
     </div>
   );
 }

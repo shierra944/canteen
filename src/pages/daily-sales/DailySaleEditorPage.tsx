@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useBlocker, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
+  ArrowRight,
   CheckCircle2,
   Copy,
   HandCoins,
@@ -42,6 +43,7 @@ import type { OfficialReport } from '@/lib/export/report';
 import { ItemDialog } from '@/pages/inventory/dialogs';
 import { SheetCombobox, type ComboOption } from './SheetCombobox';
 import { HistoryPanel, type HistoryLine } from './HistoryPanel';
+import { DayDetails, type DayDetailKind } from './DayDetails';
 
 interface Line {
   key: string;
@@ -123,6 +125,7 @@ export default function DailySaleEditorPage() {
   const [lines, setLines] = useState<Line[]>(() => [newLine()]);
   const [dirty, setDirty] = useState(false);
   const [tab, setTab] = useState<'sheet' | 'history'>('sheet');
+  const [dayDetail, setDayDetail] = useState<DayDetailKind | null>(null);
   const [busy, setBusy] = useState<null | 'save' | 'finalize' | 'reopen' | 'delete'>(null);
   const [confirmFinalize, setConfirmFinalize] = useState(false);
   const [exception, setException] = useState<{ allow: boolean; reason: string; message: string } | null>(null);
@@ -630,7 +633,7 @@ export default function DailySaleEditorPage() {
 
         {/* Canteen result for the day */}
         <div className="grid gap-4 md:grid-cols-[1.1fr_1.1fr_1.6fr]">
-          <div className="card p-5">
+          <button type="button" onClick={() => setDayDetail('gross')} className={cn('card p-5', kpiBtn)}>
             <div className="flex items-center justify-between text-[13px] font-medium text-ink-muted">
               Gross sales (canteen) <TrendingUp className="size-4 text-brand-600" />
             </div>
@@ -638,8 +641,9 @@ export default function DailySaleEditorPage() {
             <div className="mt-1 text-xs text-ink-muted">
               Canteen shares {peso(shareTotal)} + other shares {peso(otherShares)}
             </div>
-          </div>
-          <div className="card p-5">
+            <ViewDetails />
+          </button>
+          <button type="button" onClick={() => setDayDetail('net')} className={cn('card p-5', kpiBtn)}>
             <div className="flex items-center justify-between text-[13px] font-medium text-ink-muted">
               Net sales (canteen) <Scale className="size-4 text-brand-600" />
             </div>
@@ -648,27 +652,62 @@ export default function DailySaleEditorPage() {
               − expenses {peso(dayExpenses)}
               {deductDeficit ? ` − deficit ${peso(dayDeficit)}` : ''}
             </div>
-          </div>
+            <ViewDetails />
+          </button>
           <div className="card grid grid-cols-3 divide-x divide-surface-border p-0">
-            <div className="p-5">
+            <button type="button" onClick={() => setDayDetail('collected')} className={cn('rounded-l-2xl p-5', kpiBtn, 'hover:shadow-none')}>
               <div className="text-[13px] font-medium text-ink-muted">Sales collected</div>
               <div className="tabular mt-1 text-xl font-semibold">{peso(totals.salesAmount)}</div>
               <div className="mt-1 text-xs text-ink-muted">{qty(totals.unitsSold)} pcs sold</div>
-            </div>
-            <div className="p-5">
+              <ViewDetails />
+            </button>
+            <button type="button" onClick={() => setDayDetail('remit')} className={cn('p-5', kpiBtn, 'hover:shadow-none')}>
               <div className="flex items-center gap-1.5 text-[13px] font-medium text-ink-muted">
                 <HandCoins className="size-4 text-gold-600" /> To remit
               </div>
               <div className="tabular mt-1 text-xl font-semibold text-gold-600">{peso(remitTotal)}</div>
               <div className="mt-1 text-xs text-ink-muted">{byConsignee.length} consignees</div>
-            </div>
-            <div className="p-5">
+              <ViewDetails />
+            </button>
+            <button type="button" onClick={() => setDayDetail('actual')} className={cn('rounded-r-2xl p-5', kpiBtn, 'hover:shadow-none')}>
               <div className="text-[13px] font-medium text-ink-muted">Actual money</div>
               <div className="tabular mt-1 text-xl font-semibold">{actualMoney === '' ? '—' : peso(actualMoney)}</div>
               <div className="mt-1 text-xs text-ink-muted">cash counted</div>
-            </div>
+              <ViewDetails />
+            </button>
           </div>
         </div>
+        <DayDetails
+          kind={dayDetail}
+          date={date}
+          onClose={() => setDayDetail(null)}
+          byConsignee={byConsignee}
+          lines={lines
+            .map((l, i) => ({ l, i }))
+            .filter(({ l }) => l.item_name.trim())
+            .map(({ l, i }) => ({
+              item: l.item_name.trim(),
+              consignee: l.consignee.trim(),
+              price: n(l.unit_price),
+              sold: n(l.sold_quantity),
+              sales: calcLine(numericLines[i]).salesAmount,
+              share: money[i].canteenShare,
+              remit: l.is_canteen_stock ? null : money[i].remit,
+              stock: l.is_canteen_stock,
+            }))}
+          figures={{
+            shareTotal,
+            otherShares,
+            expenses: dayExpenses,
+            deficit: dayDeficit,
+            gross: grossSales,
+            net: netSales,
+            deductDeficit,
+            salesAmount: totals.salesAmount,
+            remitTotal,
+            actualMoney: actualMoney === '' ? null : Number(actualMoney),
+          }}
+        />
 
         {/* Record information */}
         <Card>
@@ -1153,6 +1192,16 @@ function SaveStatus({ state, dirty, blocked }: { state: { kind: 'idle' | 'saving
   return (
     <span className="inline-flex items-center gap-1.5 text-xs text-ink-muted">
       <CloudCheck className="size-3.5" /> Auto-save on
+    </span>
+  );
+}
+
+const kpiBtn = 'group flex flex-col text-left transition-[box-shadow,border-color,background-color] hover:border-brand-200 hover:bg-brand-50/30 hover:shadow-raised focus-visible:ring-2';
+
+function ViewDetails() {
+  return (
+    <span className="mt-auto inline-flex items-center gap-1 pt-2 text-xs font-medium text-brand-600 group-hover:text-brand-700">
+      View details <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
     </span>
   );
 }

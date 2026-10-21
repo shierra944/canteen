@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { PhilippinePeso, MinusCircle, MoreHorizontal, Pencil, PiggyBank, Plus, Receipt, Search, Undo2, Wallet } from 'lucide-react';
 import { useAuth } from '@/providers/auth';
@@ -40,6 +40,16 @@ export default function FinancePage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [view, setView] = useState<'list' | 'daily' | 'monthly'>('list');
+  const tableRef = useRef<HTMLDivElement>(null);
+  // clicking a summary card filters the table to the entries behind it
+  const showType = (t: 'sale' | 'expense' | 'deficit') => {
+    setType(t);
+    setCategoryId('');
+    setStatus('posted');
+    setView('list');
+    setPage(1);
+    requestAnimationFrame(() => tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  };
   const { data: cats = [] } = useFinCategories();
   const { data: rows = [], isLoading, error, refetch } = useFinancialTxns({
     start: period.start,
@@ -159,10 +169,11 @@ export default function FinancePage() {
               <span className="text-xs text-ink-muted">{describePeriod(period.start, period.end)}</span>
             </div>
             <div className="grid gap-4 sm:grid-cols-3">
-              <StatCard label="Other sales (shares)" value={peso(totals.sales)} icon={<PhilippinePeso />} tone="positive" sub={totals.included ? `${peso(totals.included)} already in daily sales — excluded` : 'Added to Gross Sales'} />
-              <StatCard label="Expenses" value={peso(totals.expenses)} icon={<Wallet />} sub="Deducted in Net Sales" />
-              <StatCard label="Deficit" value={peso(totals.deficit)} icon={<MinusCircle />} tone={totals.deficit ? 'negative' : 'default'} sub="Recorded separately from expenses" />
+              <StatCard label="Other sales (shares)" value={peso(totals.sales)} icon={<PhilippinePeso />} tone="positive" sub={totals.included ? `${peso(totals.included)} already in daily sales — excluded` : 'Added to Gross Sales'} onClick={() => showType('sale')} />
+              <StatCard label="Expenses" value={peso(totals.expenses)} icon={<Wallet />} sub="Deducted in Net Sales" onClick={() => showType('expense')} />
+              <StatCard label="Deficit" value={peso(totals.deficit)} icon={<MinusCircle />} tone={totals.deficit ? 'negative' : 'default'} sub="Recorded separately from expenses" onClick={() => showType('deficit')} />
             </div>
+            <div ref={tableRef} className="scroll-mt-20" />
             <Card>
               <FilterBar
                 active={active}

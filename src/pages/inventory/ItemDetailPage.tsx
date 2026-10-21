@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, History, PackagePlus, Pencil, SlidersHorizontal, Undo2, XCircle } from 'lucide-react';
 import { useAuth } from '@/providers/auth';
@@ -6,7 +6,7 @@ import { rpc } from '@/lib/supabase';
 import { useAction, useInventoryItem, useInventoryMovement, useProfilesMap } from '@/lib/queries';
 import { INV_TYPE_LABEL } from '@/lib/labels';
 import { resolvePeriod, type Period } from '@/lib/periods';
-import { formatDate, formatDateTime, peso, qty, toNumber } from '@/lib/utils';
+import { cn, formatDate, formatDateTime, peso, qty, toNumber } from '@/lib/utils';
 import { useApp } from '@/providers/app';
 import { Card, CardBody, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -35,7 +35,23 @@ export default function ItemDetailPage() {
     onSuccess: () => setReverse(null),
   });
 
-  const txns = useMemo(() => data?.txns ?? [], [data]);
+  const [ledgerFilter, setLedgerFilter] = useState<{ label: string; types: string[] | null; inPeriod: boolean } | null>(null);
+  const ledgerRef = useRef<HTMLDivElement>(null);
+  const allTxns = useMemo(() => data?.txns ?? [], [data]);
+  // the ledger rows behind the clicked tile (period tiles use the selected period)
+  const txns = useMemo(() => {
+    if (!ledgerFilter) return allTxns;
+    return allTxns.filter((t) => {
+      const inRange = t.txn_date >= period.start && t.txn_date <= period.end;
+      if (ledgerFilter.label === 'Opening stock') return t.txn_date < period.start;
+      if (ledgerFilter.label === 'Closing stock') return t.txn_date <= period.end;
+      return (!ledgerFilter.inPeriod || inRange) && (!ledgerFilter.types || ledgerFilter.types.includes(t.transaction_type));
+    });
+  }, [allTxns, ledgerFilter, period]);
+  const showLedger = (label: string, types: string[] | null, inPeriod = true) => {
+    setLedgerFilter({ label, types, inPeriod });
+    requestAnimationFrame(() => ledgerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  };
 
   if (error) return <ErrorState error={error} onRetry={() => refetch()} />;
   if (isLoading || !data) return <Skeleton className="h-96" />;
@@ -129,17 +145,26 @@ export default function ItemDetailPage() {
               <>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   {[
-                    ['Opening stock', mv.opening, ''],
-                    ['Stock received', mv.received, 'text-brand-600'],
-                    ['Quantity sold', mv.sold, ''],
-                    ['Damaged / expired / spoiled / missing', mv.losses, 'text-danger-600'],
-                    ['Other adjustments', mv.other_adjustments, ''],
-                    ['Closing stock', mv.closing, 'text-brand-700'],
-                  ].map(([label, v, cls]) => (
-                    <div key={label as string} className="rounded-xl border border-surface-border p-3">
-                      <div className="text-xs text-ink-muted">{label}</div>
+                    ['Opening stock', mv.opening, '', null],
+                    ['Stock received', mv.received, 'text-brand-600', ['opening', 'stock_in', 'stock_in_reversal']],
+                    ['Quantity sold', mv.sold, '', ['sale', 'sale_reversal']],
+                    ['Damaged / expired / spoiled / missing', mv.losses, 'text-danger-600', ['damaged', 'expired', 'spoiled', 'missing']],
+                    ['Other adjustments', mv.other_adjustments, '', ['count_correction', 'other_adjustment']],
+                    ['Closing stock', mv.closing, 'text-brand-700', null],
+                  ].map(([label, v, cls, types]) => (
+                    <button
+                      type="button"
+                      key={label as string}
+                      onClick={() => showLedger(label as string, types as string[] | null)}
+                      className={cn(
+                        'group rounded-xl border p-3 text-left transition-colors hover:border-brand-200 hover:bg-brand-50/40',
+                        ledgerFilter?.label === label ? 'border-brand-500 bg-brand-50/50' : 'border-surface-border',
+                      )}
+                    >
+                      <div className="text-xs text-ink-muted">{label as string}</div>
                       <div className={`tabular mt-1 text-lg font-semibold ${cls}`}>{qty(v)}</div>
-                    </div>
+                      <div className="mt-1 text-[11px] font-medium text-brand-600 opacity-0 transition-opacity group-hover:opacity-100">View movements →</div>
+                    </button>
                   ))}
                 </div>
                 <div className="mt-4">
@@ -162,9 +187,21 @@ export default function ItemDetailPage() {
 
       {!item.is_consigned && (
       <Card>
-        <CardHeader title="Stock ledger" description="Permanent record of every stock movement" icon={<History />} />
+        <div ref={ledgerRef} className="scroll-mt-20" />
+        <CardHeader
+          title="Stock ledger"
+          description={ledgerFilter ? `Showing: ${ledgerFilter.label}${ledgerFilter.label === 'Opening stock' ? ` (before ${formatDate(period.start)})` : ledgerFilter.label === 'Closing stock' ? ` (up to ${formatDate(period.end)})` : ` · ${formatDate(period.start)} – ${formatDate(period.end)}`}` : 'Permanent record of every stock movement'}
+          icon={<History />}
+          actions={
+            ledgerFilter && (
+              <Button variant="ghost" size="sm" onClick={() => setLedgerFilter(null)}>
+                Show all movements
+              </Button>
+            )
+          }
+        />
         {txns.length === 0 ? (
-          <EmptyState icon={<History />} title="No stock movements yet" />
+          <EmptyState icon={<History />} title={ledgerFilter ? 'No movements of this kind in the period' : 'No stock movements yet'} />
         ) : (
           <Table>
             <THead>

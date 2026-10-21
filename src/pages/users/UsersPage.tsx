@@ -46,6 +46,8 @@ async function callAdminFn(body: Record<string, unknown>) {
 export default function UsersPage() {
   const { profile, isAdmin } = useAuth();
   const { data: users = [], isLoading } = useUsersFull();
+  const [roleFilter, setRoleFilter] = useState<AppRole | ''>('');
+  const shown = roleFilter ? users.filter((u) => u.role === roleFilter) : users;
   const [edit, setEdit] = useState<UserRow | 'new' | null>(null);
   const [reset, setReset] = useState<UserRow | null>(null);
 
@@ -62,7 +64,13 @@ export default function UsersPage() {
       />
       <div className="mb-5 grid gap-4 md:grid-cols-3">
         {(['admin', 'staff', 'viewer'] as AppRole[]).map((r) => (
-          <div key={r} className="card p-4">
+          <button
+            key={r}
+            type="button"
+            onClick={() => setRoleFilter((f) => (f === r ? '' : r))}
+            aria-pressed={roleFilter === r}
+            className={cn('card group p-4 text-left transition-[box-shadow,border-color] hover:shadow-raised', roleFilter === r ? 'border-brand-500 ring-2 ring-brand-500/20' : 'hover:border-brand-200')}
+          >
             <div className="flex items-center gap-2 text-sm font-semibold">
               <ShieldCheck className="size-4 text-brand-600" /> {ROLE_LABEL[r]}
             </div>
@@ -73,8 +81,11 @@ export default function UsersPage() {
                   ? 'Records daily sales, expenses and other sales. Extra powers (inventory, corrections, settings) only when granted.'
                   : 'Views permitted dashboards and reports. Can never add or change records.'}
             </p>
-            <div className="mt-2 text-xs text-ink-muted">{users.filter((u) => u.role === r).length} users</div>
-          </div>
+            <div className="mt-2 flex items-center justify-between text-xs">
+              <span className="text-ink-muted">{users.filter((u) => u.role === r).length} users</span>
+              <span className="font-medium text-brand-600">{roleFilter === r ? 'Showing only these — click to show all' : 'View users →'}</span>
+            </div>
+          </button>
         ))}
       </div>
       <Card>
@@ -95,7 +106,7 @@ export default function UsersPage() {
               </tr>
             </THead>
             <tbody>
-              {users.map((u) => (
+              {shown.map((u) => (
                 <TR key={u.id}>
                   <TD>
                     <div className="flex items-center gap-3">
