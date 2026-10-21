@@ -141,6 +141,25 @@ export function useInventory(includeArchived = false) {
   });
 }
 
+export interface ProductTotals {
+  item_id: string;
+  delivered: number | string;
+  sold: number | string;
+  days: number;
+  last_sale_date: string | null;
+}
+
+/** Running totals per product: handed over to the canteen so far, and sold so far. */
+export function useProductTotals() {
+  return useQuery({
+    queryKey: [...keys.inventory, 'totals'],
+    queryFn: async () => {
+      const rows = unwrap(await supabase.from('v_product_totals').select('*')) as ProductTotals[];
+      return new Map(rows.map((r) => [r.item_id, r]));
+    },
+  });
+}
+
 export function useInventoryItem(id: string | undefined) {
   return useQuery({
     queryKey: keys.item(id ?? ''),

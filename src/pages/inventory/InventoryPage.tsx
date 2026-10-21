@@ -23,9 +23,9 @@ import { AdjustDialog, ItemDialog, StockInDialog, useArchiveItem } from './dialo
 import { CategoriesDialog, SuppliersDialog } from './reference-dialogs';
 import { ConsigneesPanel } from './ConsigneesPanel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useConsignees } from '@/lib/queries';
+import { useConsignees, useProductTotals } from '@/lib/queries';
 
-type SortKey = 'item_code' | 'name' | 'category_name' | 'quantity_on_hand' | 'unit_cost' | 'selling_price' | 'stock_value' | 'reorder_level';
+type SortKey = 'name' | 'delivered' | 'sold' | 'unit_cost' | 'selling_price' | 'stock_value';
 const PAGE = 15;
 
 export default function InventoryPage() {
@@ -53,9 +53,19 @@ export default function InventoryPage() {
   const [refDialog, setRefDialog] = useState<'categories' | 'suppliers' | null>(null);
   const archiveItem = useArchiveItem();
 
+  const { data: productTotals } = useProductTotals();
+  // running totals: handed over to the canteen so far / sold so far
+  const enriched = useMemo(
+    () =>
+      items.map((i) => {
+        const t = productTotals?.get(i.id);
+        return { ...i, delivered: toNumber(t?.delivered), sold: toNumber(t?.sold), days: t?.days ?? 0, last_sale_date: t?.last_sale_date ?? null };
+      }),
+    [items, productTotals],
+  );
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
-    const rows = items.filter(
+    const rows = enriched.filter(
       (i) =>
         (!s || i.name.toLowerCase().includes(s) || i.item_code.toLowerCase().includes(s) || (i.supplier_name ?? '').toLowerCase().includes(s) || (i.consignee_name ?? '').toLowerCase().includes(s)) &&
         (!category || i.category_id === category) &&
@@ -65,12 +75,14 @@ export default function InventoryPage() {
         (showArchived ? !i.is_active : true),
     );
     return sortRows(rows, sort.key, sort.dir);
-  }, [items, search, category, kind, consigneeId, status, sort, showArchived]);
+  }, [enriched, search, category, kind, consigneeId, status, sort, showArchived]);
 
   const pageRows = filtered.slice((page - 1) * PAGE, page * PAGE);
   const totals = useMemo(
     () => ({
       value: filtered.reduce((a, i) => a + toNumber(i.stock_value), 0),
+      delivered: filtered.reduce((a, i) => a + i.delivered, 0),
+      sold: filtered.reduce((a, i) => a + i.sold, 0),
       low: items.filter((i) => i.is_active && i.stock_status === 'low_stock').length,
       out: items.filter((i) => i.is_active && i.stock_status === 'out_of_stock').length,
     }),
@@ -87,26 +99,24 @@ export default function InventoryPage() {
   const filtersActive = Boolean(search || category || kind || consigneeId || status || showArchived);
 
   const report = (): OfficialReport => ({
-    title: 'Canteen Inventory Report',
+    title: 'Products & Consignees',
     period: `As of ${new Intl.DateTimeFormat('en-PH', { dateStyle: 'long' }).format(new Date(todayPH()))}`,
     schoolYear: activeSchoolYear?.name,
-    filename: `QNHS-Inventory-${todayPH()}`,
+    filename: `QNHS-Products-${todayPH()}`,
     orientation: 'landscape',
     columns: [
-      { key: 'item_code', header: 'Item Code', width: 12 },
-      { key: 'name', header: 'Item Name', width: 28 },
-      { key: 'category_name', header: 'Category', width: 12 },
-      { key: 'type', header: 'Type / Consignee', width: 18 },
+      { key: 'name', header: 'Product', width: 28 },
+      { key: 'type', header: 'Type / Consignee', width: 20 },
       { key: 'unit', header: 'Unit', width: 9 },
-      { key: 'quantity_on_hand', header: 'Qty on Hand', format: 'qty', width: 12 },
-      { key: 'unit_cost', header: 'Cost / Unit', format: 'peso', width: 12 },
+      { key: 'delivered', header: 'Total Delivered', format: 'qty', width: 13 },
+      { key: 'sold', header: 'Total Sold', format: 'qty', width: 12 },
+      { key: 'unit_cost', header: 'Cost Price', format: 'peso', width: 12 },
       { key: 'selling_price', header: 'Selling Price', format: 'peso', width: 12 },
       { key: 'stock_value', header: 'Stock Value', format: 'peso', width: 14 },
-      { key: 'reorder_level', header: 'Reorder Level', format: 'qty', width: 11 },
       { key: 'status', header: 'Status', width: 12 },
     ],
     rows: filtered.map((i) => ({ ...i, type: i.is_consigned ? `Consigned · ${i.consignee_name ?? ''}` : 'Canteen stock', status: STOCK_STATUS_LABEL[i.stock_status] })),
-    totals: { item_code: 'TOTAL', stock_value: totals.value },
+    totals: { name: 'TOTAL', delivered: totals.delivered, sold: totals.sold, stock_value: totals.value },
   });
 
   return (
@@ -259,15 +269,13 @@ export default function InventoryPage() {
               <Table>
                 <THead>
                   <tr>
-                    <SortTH label="Code" sortKey="item_code" sort={sort} onSort={setSort} />
-                    <SortTH label="Item" sortKey="name" sort={sort} onSort={setSort} />
-                    <SortTH label="Category" sortKey="category_name" sort={sort} onSort={setSort} />
+                    <SortTH label="Product" sortKey="name" sort={sort} onSort={setSort} />
                     <TH>Unit</TH>
-                    <SortTH label="On hand" sortKey="quantity_on_hand" sort={sort} onSort={setSort} align="right" />
+                    <SortTH label="Total delivered" sortKey="delivered" sort={sort} onSort={setSort} align="right" />
+                    <SortTH label="Total sold" sortKey="sold" sort={sort} onSort={setSort} align="right" />
                     <SortTH label="Cost price" sortKey="unit_cost" sort={sort} onSort={setSort} align="right" />
-                    <SortTH label="Price" sortKey="selling_price" sort={sort} onSort={setSort} align="right" />
+                    <SortTH label="Selling price" sortKey="selling_price" sort={sort} onSort={setSort} align="right" />
                     <SortTH label="Stock value" sortKey="stock_value" sort={sort} onSort={setSort} align="right" />
-                    <SortTH label="Reorder" sortKey="reorder_level" sort={sort} onSort={setSort} align="right" />
                     <TH>Status</TH>
                     <TH align="right">
                       <span className="sr-only">Actions</span>
@@ -277,23 +285,23 @@ export default function InventoryPage() {
                 <tbody>
                   {pageRows.map((i) => (
                     <TR key={i.id} onClick={() => navigate(`/inventory/${i.id}`)}>
-                      <TD className="font-mono text-xs text-ink-muted">{i.item_code}</TD>
                       <TD className="font-medium">
                         {i.name}
                         {i.is_consigned && <div className="text-xs font-normal text-ink-muted">Consignee: {i.consignee_name ?? '—'}</div>}
                       </TD>
-                      <TD className="text-ink-muted">{i.category_name ?? '—'}</TD>
                       <TD className="text-ink-muted">{i.unit}</TD>
-                      <TD align="right" className="font-semibold">
-                        {i.is_consigned ? <span className="font-normal text-ink-soft">—</span> : qty(i.quantity_on_hand)}
+                      <TD align="right" className="font-semibold" title={i.is_consigned ? 'Handed over by the consignee on all saved daily sales sheets' : 'Stock received by the canteen (opening + stock-in)'}>
+                        {qty(i.delivered)}
+                        {i.days > 0 && <div className="text-[11px] font-normal text-ink-muted">{i.days} day{i.days === 1 ? '' : 's'}</div>}
+                      </TD>
+                      <TD align="right" className="font-semibold text-brand-700" title="Sold on all saved daily sales sheets">
+                        {qty(i.sold)}
+                        {i.delivered > 0 && <div className="text-[11px] font-normal text-ink-muted">{Math.round((i.sold / i.delivered) * 100)}% sold</div>}
                       </TD>
                       <TD align="right">{peso(i.unit_cost)}</TD>
                       <TD align="right">{peso(i.selling_price)}</TD>
                       <TD align="right" className="font-medium">
                         {i.is_consigned ? <span className="font-normal text-ink-soft">—</span> : peso(i.stock_value)}
-                      </TD>
-                      <TD align="right" className="text-ink-muted">
-                        {i.is_consigned ? '—' : qty(i.reorder_level)}
                       </TD>
                       <TD>{i.is_active ? <StockBadge status={i.stock_status} /> : <span className="text-xs text-ink-muted">Archived</span>}</TD>
                       <TD align="right" onClick={(e) => e.stopPropagation()}>
@@ -336,6 +344,16 @@ export default function InventoryPage() {
                     </TR>
                   ))}
                 </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-surface-border bg-surface-page/80 font-semibold">
+                    <TD colSpan={2}>Total ({filtered.length} products)</TD>
+                    <TD align="right">{qty(totals.delivered)}</TD>
+                    <TD align="right" className="text-brand-700">{qty(totals.sold)}</TD>
+                    <TD colSpan={2} />
+                    <TD align="right">{peso(totals.value)}</TD>
+                    <TD colSpan={2} />
+                  </tr>
+                </tfoot>
               </Table>
               <Pagination page={page} pageSize={PAGE} total={filtered.length} onPage={setPage} />
             </>

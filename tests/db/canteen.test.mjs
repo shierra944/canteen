@@ -429,3 +429,23 @@ test('spreadsheet sync can be repeated without duplicates; review rows stay open
   assert.deepEqual(second.map((r) => r.status), ['duplicate', 'duplicate']);
   assert.equal((await db.sql(`select count(*)::int as n from public.financial_transactions where description = 'Iced water' and transaction_date = '2026-02-26'`))[0].n, 1);
 });
+
+test('product running totals: delivered and sold so far', async () => {
+  const [{ id: judy }] = await db.sql(`select id from public.consignees where name = 'Judy Ann'`);
+  const [{ create_inventory_item: pid }] = await db.as(admin, 'select public.create_inventory_item($1)', [{
+    name: 'Bola-bola', is_consigned: true, consignee_id: judy, selling_price: 6 }]);
+  // a linked line on a draft + an imported (unlinked) line spelled differently
+  await db.as(staff, 'select public.save_daily_sale(null, $1, null, null, $2)', ['2026-03-11', [
+    { inventory_item_id: pid, total_quantity: 62, unit_price: 6, sold_quantity: 26 }]]);
+  const [{ stage_import: b }] = await db.as(admin, 'select public.stage_import($1, $2)', [
+    { file_name: 'x.xlsx', sheet_name: 'DAILY SALES', target: 'daily_sales' },
+    [{ row_ref: 'D!B58', group_key: '2026-02-20', status: 'valid', mapped: { sale_date: '2026-02-20', line_no: 1, item_name: 'Bola bola', consignee: 'judy ann', total_quantity: 45, unit_price: 6, sold_quantity: 31 } }]]);
+  await db.as(admin, 'select public.commit_import_batch($1)', [b]);
+  const [t] = await db.as(viewer, 'select * from public.v_product_totals where item_id = $1', [pid]);
+  assert.equal(num(t.delivered), 107);
+  assert.equal(num(t.sold), 57);
+  assert.equal(num(t.days), 2);
+  // canteen stock: delivered = stock received
+  const [r] = await db.sql('select delivered from public.v_product_totals where item_id = $1', [rice]);
+  assert.equal(num(r.delivered), 100, 'opening 50 + stock-in 50');
+});
