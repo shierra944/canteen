@@ -12,7 +12,7 @@ import { cn, formatDate, formatDateTime, peso, qty, toNumber, todayPH, uuid } fr
 import type { DailySaleItem, InventoryItem } from '@/lib/types';
 import { Card, CardBody, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Checkbox, Field, Input, Textarea } from '@/components/ui/form';
+import { Checkbox, Field, Input, Textarea, needsInputClass } from '@/components/ui/form';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Callout, ErrorState, Skeleton } from '@/components/ui/feedback';
 import { ConfirmDialog } from '@/components/ui/dialog';
@@ -585,6 +585,9 @@ export default function DailySaleEditorPage() {
                   const c = calcLine(numericLines[i]);
                   const err = lineErrors[i];
                   const warn = stockWarnings[i];
+                  // a started row must have item, selling price, total and sold
+                  const started = meaningful.includes(l) && editable;
+                  const need = (v: string) => started && v.trim() === '';
                   return (
                     <tr key={l.key} className={cn('border-b border-surface-border align-top', err && 'bg-danger-50/50')}>
                       <td className="px-3 py-2.5 text-xs text-ink-muted tabular">{i + 1}</td>
@@ -594,7 +597,8 @@ export default function DailySaleEditorPage() {
                           linkedId={l.inventory_item_id}
                           items={inventory}
                           disabled={!editable}
-                          invalid={Boolean(err && !l.item_name.trim())}
+                          invalid={false}
+                          needsInput={need(l.item_name)}
                           onText={(t) => edit(l.key, { item_name: t, inventory_item_id: null, is_canteen_stock: false })}
                           onPick={(it) => pick(l.key, it)}
                           onCreate={can('inventory.manage') ? (name) => setCreateFor({ key: l.key, name }) : undefined}
@@ -626,10 +630,10 @@ export default function DailySaleEditorPage() {
                         )}
                       </td>
                       <td className="px-1 py-1">
-                        <input type="number" min={0} step="0.01" value={l.unit_price} disabled={!editable} onChange={(e) => edit(l.key, { unit_price: e.target.value })} className={numCell} aria-label={`Selling price row ${i + 1}`} />
+                        <input type="number" min={0} step="0.01" value={l.unit_price} disabled={!editable} onChange={(e) => edit(l.key, { unit_price: e.target.value })} className={cn(numCell, need(l.unit_price) && needsInputClass)} aria-required={started || undefined} title={need(l.unit_price) ? 'Required — enter the selling price' : undefined} aria-label={`Selling price row ${i + 1}`} />
                       </td>
                       <td className="border-l border-surface-border px-1 py-1">
-                        <input type="number" min={0} step="any" value={l.total_quantity} disabled={!editable} onChange={(e) => edit(l.key, { total_quantity: e.target.value })} className={numCell} aria-label={`Total quantity row ${i + 1}`} />
+                        <input type="number" min={0} step="any" value={l.total_quantity} disabled={!editable} onChange={(e) => edit(l.key, { total_quantity: e.target.value })} className={cn(numCell, need(l.total_quantity) && needsInputClass)} aria-required={started || undefined} title={need(l.total_quantity) ? 'Required — enter the quantity brought in' : undefined} aria-label={`Total quantity row ${i + 1}`} />
                       </td>
                       <td className="px-1 py-1">
                         <input
@@ -639,7 +643,9 @@ export default function DailySaleEditorPage() {
                           value={l.sold_quantity}
                           disabled={!editable}
                           onChange={(e) => edit(l.key, { sold_quantity: e.target.value })}
-                          className={cn(numCell, 'font-semibold', c.error && 'text-danger-600')}
+                          className={cn(numCell, 'font-semibold', c.error && 'text-danger-600', need(l.sold_quantity) && needsInputClass)}
+                          aria-required={started || undefined}
+                          title={need(l.sold_quantity) ? 'Required — enter the quantity sold (0 if none)' : undefined}
                           aria-label={`Sold quantity row ${i + 1}`}
                         />
                       </td>

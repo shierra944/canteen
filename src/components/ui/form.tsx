@@ -1,37 +1,87 @@
-import { forwardRef, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
+import { createContext, forwardRef, useContext, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const fieldBase =
   'w-full rounded-xl border border-surface-border bg-white px-3 text-sm text-ink shadow-[inset_0_1px_1px_rgba(16,40,24,0.03)] transition-colors placeholder:text-ink-soft hover:border-[#cfd9d2] focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:bg-surface-sunken disabled:text-ink-muted aria-[invalid=true]:border-danger-500 aria-[invalid=true]:focus:ring-danger-500/20';
 
+/** Set by <Field required>; inputs inside it highlight themselves while empty. */
+const FieldContext = createContext<{ required?: boolean }>({});
+
+/** Amber "needs input" treatment for a required control that is still empty. */
+export const needsInputClass =
+  'border-gold-500 bg-gold-50 hover:border-gold-500 focus:bg-white placeholder:text-gold-600/70';
+
+export function isBlank(v: unknown): boolean {
+  return v === undefined || v === null || String(v).trim() === '';
+}
+
+/** Highlight state for a control: required (from props or Field) and empty, not disabled. */
+function useNeedsInput(props: { required?: boolean; value?: unknown; disabled?: boolean; 'aria-invalid'?: unknown }) {
+  const ctx = useContext(FieldContext);
+  const required = props.required ?? ctx.required ?? false;
+  const empty = 'value' in props && isBlank(props.value);
+  const invalid = props['aria-invalid'] === true || props['aria-invalid'] === 'true';
+  return { required, needs: required && empty && !props.disabled && !invalid };
+}
+
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & { prefix?: string }>(
-  ({ className, prefix, ...props }, ref) =>
-    prefix ? (
+  ({ className, prefix, required, ...props }, ref) => {
+    const { required: req, needs } = useNeedsInput({ required, ...props });
+    const shared = {
+      ref,
+      required,
+      'aria-required': req || undefined,
+      'data-needs-input': needs || undefined,
+      title: needs ? 'Required — please fill in' : props.title,
+      ...props,
+    };
+    return prefix ? (
       <div className="relative">
-        <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-ink-muted">{prefix}</span>
-        <input ref={ref} className={cn(fieldBase, 'h-10 pl-7', className)} {...props} />
+        <span className={cn('pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm', needs ? 'text-gold-600' : 'text-ink-muted')}>{prefix}</span>
+        <input {...shared} className={cn(fieldBase, 'h-10 pl-7', needs && needsInputClass, className)} />
       </div>
     ) : (
-      <input ref={ref} className={cn(fieldBase, 'h-10', className)} {...props} />
-    ),
+      <input {...shared} className={cn(fieldBase, 'h-10', needs && needsInputClass, className)} />
+    );
+  },
 );
 Input.displayName = 'Input';
 
-export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(
-  ({ className, ...props }, ref) => <textarea ref={ref} className={cn(fieldBase, 'min-h-[80px] py-2', className)} {...props} />,
-);
+export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(({ className, required, ...props }, ref) => {
+  const { required: req, needs } = useNeedsInput({ required, ...props });
+  return (
+    <textarea
+      ref={ref}
+      required={required}
+      aria-required={req || undefined}
+      data-needs-input={needs || undefined}
+      className={cn(fieldBase, 'min-h-[80px] py-2', needs && needsInputClass, className)}
+      {...props}
+    />
+  );
+});
 Textarea.displayName = 'Textarea';
 
 export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement>>(
-  ({ className, children, ...props }, ref) => (
-    <div className="relative">
-      <select ref={ref} className={cn(fieldBase, 'h-10 appearance-none pr-9', className)} {...props}>
-        {children}
-      </select>
-      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-ink-muted" />
-    </div>
-  ),
+  ({ className, children, required, ...props }, ref) => {
+    const { required: req, needs } = useNeedsInput({ required, ...props });
+    return (
+      <div className="relative">
+        <select
+          ref={ref}
+          required={required}
+          aria-required={req || undefined}
+          data-needs-input={needs || undefined}
+          className={cn(fieldBase, 'h-10 appearance-none pr-9', needs && needsInputClass, className)}
+          {...props}
+        >
+          {children}
+        </select>
+        <ChevronDown className={cn('pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2', needs ? 'text-gold-600' : 'text-ink-muted')} />
+      </div>
+    );
+  },
 );
 Select.displayName = 'Select';
 
@@ -53,12 +103,19 @@ export function Field({
   children: ReactNode;
 }) {
   return (
-    <div className={cn('space-y-1.5', className)}>
-      <label htmlFor={htmlFor} className="block text-[13px] font-medium text-ink">
-        {label}
-        {required && <span className="ml-0.5 text-danger-500">*</span>}
+    <div className={cn('group/field space-y-1.5', className)}>
+      <label htmlFor={htmlFor} className="flex items-center gap-1.5 text-[13px] font-medium text-ink">
+        <span>
+          {label}
+          {required && <span className="ml-0.5 text-danger-500" aria-hidden>*</span>}
+        </span>
+        {required && (
+          <span className="hidden rounded-full bg-gold-100 px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-gold-600 group-has-[[data-needs-input]]/field:inline-flex">
+            Required
+          </span>
+        )}
       </label>
-      {children}
+      <FieldContext.Provider value={{ required }}>{children}</FieldContext.Provider>
       {error ? (
         <p className="text-xs text-danger-600" role="alert">
           {error}

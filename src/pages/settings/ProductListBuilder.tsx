@@ -7,7 +7,7 @@ import type { DerivedProduct } from '@/lib/import/workbook';
 import { cn, formatDate } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Callout } from '@/components/ui/feedback';
-import { Select } from '@/components/ui/form';
+import { Select, needsInputClass } from '@/components/ui/form';
 import { ConfirmDialog } from '@/components/ui/dialog';
 
 interface Row extends DerivedProduct {
@@ -124,7 +124,7 @@ export function ProductListBuilder({ products }: { products: DerivedProduct[] })
                       <input type="checkbox" className="accent-brand-600" aria-label={`Include ${r.editName}`} disabled={already} checked={r.include && !already} onChange={(e) => set(r.key, { include: e.target.checked })} />
                     </td>
                     <td className="px-1 py-1">
-                      <input className={cell} value={r.editName} onChange={(e) => set(r.key, { editName: e.target.value })} aria-label="Item name" />
+                      <input className={cn(cell, r.include && !already && !r.editName.trim() && needsInputClass)} aria-required value={r.editName} onChange={(e) => set(r.key, { editName: e.target.value })} aria-label="Item name" />
                     </td>
                     <td className="px-1 py-1">
                       <input className={cell} value={r.editConsignee} onChange={(e) => set(r.key, { editConsignee: e.target.value })} aria-label="Consignee" />
@@ -146,7 +146,7 @@ export function ProductListBuilder({ products }: { products: DerivedProduct[] })
                       </Select>
                     </td>
                     <td className="px-1 py-1">
-                      <input type="number" min={0} step="0.01" className={cn(cell, 'text-right tabular')} value={r.price} onChange={(e) => set(r.key, { price: e.target.value })} aria-label="Selling price" />
+                      <input type="number" min={0} step="0.01" className={cn(cell, 'text-right tabular', r.include && !already && r.price === '' && needsInputClass)} aria-required value={r.price} onChange={(e) => set(r.key, { price: e.target.value })} aria-label="Selling price" />
                     </td>
                     <td className="px-1 py-1">
                       <input type="number" min={0} step="0.01" className={cn(cell, 'text-right tabular')} value={r.cost} placeholder="—" onChange={(e) => set(r.key, { cost: e.target.value })} aria-label="Cost price" />

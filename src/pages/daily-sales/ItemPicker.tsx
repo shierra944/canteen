@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import { Link2, Plus } from 'lucide-react';
 import { cn, peso, qty } from '@/lib/utils';
+import { needsInputClass } from '@/components/ui/form';
 import type { InventoryItem } from '@/lib/types';
 
 /**
@@ -15,6 +16,7 @@ export function ItemPicker({
   items,
   disabled,
   invalid,
+  needsInput,
   onText,
   onPick,
   onCreate,
@@ -24,6 +26,7 @@ export function ItemPicker({
   items: InventoryItem[];
   disabled?: boolean;
   invalid?: boolean;
+  needsInput?: boolean;
   onText: (text: string) => void;
   onPick: (item: InventoryItem) => void;
   onCreate?: (name: string) => void;
@@ -72,7 +75,10 @@ export function ItemPicker({
               'h-9 w-full min-w-[180px] rounded-lg border border-transparent bg-transparent px-2 text-sm hover:border-surface-border focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:hover:border-transparent',
               linkedId && 'pr-7',
               invalid && 'border-danger-500',
+              needsInput && !invalid && needsInputClass,
             )}
+            aria-required={needsInput || undefined}
+            title={needsInput ? 'Required — choose or type the item' : undefined}
           />
           {linkedId && <Link2 className="absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-brand-600" aria-label="Linked to inventory" />}
         </div>
