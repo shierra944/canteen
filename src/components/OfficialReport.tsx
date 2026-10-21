@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { useApp } from '@/providers/app';
 import { useAuth } from '@/providers/auth';
 import { exportCsv, exportExcel, exportPdf, formatCell, signatories, type OfficialReport } from '@/lib/export/report';
-import { CONTACT_ICONS, LETTERHEAD_FONT, letterheadContent, svgDataUrl } from '@/lib/export/letterhead';
+import { CONTACT_ICONS, LETTERHEAD_FONT, ensureLetterheadFont, letterheadContent, svgDataUrl } from '@/lib/export/letterhead';
 import type { SchoolSettings } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Button } from './ui/button';
@@ -29,6 +29,8 @@ export function ExportMenu({
   if (!(allow ?? can('reports.export'))) return null;
   const run = async (kind: 'xlsx' | 'pdf' | 'csv' | 'print') => {
     if (kind === 'print') {
+      // the letterhead font must be loaded before the print dialog renders
+      await ensureLetterheadFont();
       // "Save as PDF" from the print dialog uses the page title as file name
       const previous = document.title;
       document.title = report().filename;
@@ -192,10 +194,10 @@ export function LetterheadHeader({ settings }: { settings: SchoolSettings | unde
   return (
     <div className="text-center leading-tight text-[#595959]" style={exact}>
       <img src="/logos/deped.png" alt="DepEd seal" className="mx-auto h-[13mm] w-[13mm] object-contain" />
-      <div className="mt-1 text-[14px] font-medium" style={{ fontFamily: `"${LETTERHEAD_FONT}", "Old English Text MT", serif` }}>
+      <div className="mt-1 text-[14px] font-medium" style={{ fontFamily: `"${LETTERHEAD_FONT}", Georgia, serif` }}>
         {t.republic}
       </div>
-      <div className="text-[18px] font-medium" style={{ fontFamily: `"${LETTERHEAD_FONT}", "Old English Text MT", serif` }}>
+      <div className="text-[18px] font-medium" style={{ fontFamily: `"${LETTERHEAD_FONT}", Georgia, serif` }}>
         {t.department}
       </div>
       <div className="mt-0.5 font-[Arial,Helvetica,sans-serif] text-[9.5px]">{t.region}</div>

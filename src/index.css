@@ -1,3 +1,10 @@
+@font-face {
+  font-family: 'Grenze Gotisch';
+  src: url('/fonts/GrenzeGotisch.ttf') format('truetype');
+  font-weight: 100 900;
+  font-display: block;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

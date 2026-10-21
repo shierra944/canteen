@@ -64,15 +64,29 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
   });
 }
 
-async function ensureFonts() {
-  try {
-    await Promise.all([
-      document.fonts.load(`500 22px "${LETTERHEAD_FONT}"`),
-      document.fonts.load('bold 15px Arial'),
-    ]);
-  } catch {
-    /* fall back to the default serif */
+// The font ships with the app (public/fonts) so the letterhead never depends
+// on a network font or on whatever fonts the computer has installed.
+export const LETTERHEAD_FONT_URL = '/fonts/GrenzeGotisch.ttf';
+let fontReady: Promise<void> | null = null;
+export function ensureLetterheadFont(): Promise<void> {
+  if (!fontReady) {
+    fontReady = (async () => {
+      try {
+        if (![...document.fonts].some((f) => f.family.replace(/"/g, '') === LETTERHEAD_FONT && f.status === 'loaded')) {
+          const face = new FontFace(LETTERHEAD_FONT, `url(${LETTERHEAD_FONT_URL})`, { weight: '100 900' });
+          document.fonts.add(await face.load());
+        }
+        await document.fonts.load(`500 22px "${LETTERHEAD_FONT}"`);
+      } catch {
+        fontReady = null; // try again on the next export
+      }
+    })();
   }
+  return fontReady;
+}
+
+async function ensureFonts() {
+  await ensureLetterheadFont();
 }
 
 /** Draw an image inside a box, keeping its aspect ratio, centred in the box. */
@@ -110,7 +124,7 @@ let cache: { key: string; images: LetterheadImages } | null = null;
 /** Header and footer as PNG data URLs (cached per settings). */
 export async function renderLetterhead(settings: SchoolSettings | undefined): Promise<LetterheadImages> {
   const t = letterheadContent(settings);
-  const key = JSON.stringify(t);
+  const key = JSON.stringify({ t, font: LETTERHEAD_FONT });
   if (cache?.key === key) return cache.images;
   await ensureFonts();
   const [seal, bagong, deped, matatag, qnhs, iLoc, iPhone, iMail, iFb] = await Promise.all([
@@ -130,9 +144,9 @@ export async function renderLetterhead(settings: SchoolSettings | undefined): Pr
   const h = canvas(HH);
   drawContain(h.ctx, seal, W / 2 - 25, 1, 50, 50);
   h.ctx.fillStyle = TEXT;
-  h.ctx.font = `500 17px "${LETTERHEAD_FONT}", "Old English Text MT", serif`;
+  h.ctx.font = `500 17px "${LETTERHEAD_FONT}", Georgia, serif`;
   h.ctx.fillText(t.republic, W / 2, 70);
-  h.ctx.font = `500 22px "${LETTERHEAD_FONT}", "Old English Text MT", serif`;
+  h.ctx.font = `500 22px "${LETTERHEAD_FONT}", Georgia, serif`;
   h.ctx.fillText(t.department, W / 2, 93);
   h.ctx.font = '12px Arial, Helvetica, sans-serif';
   h.ctx.fillText(t.region, W / 2, 109);
