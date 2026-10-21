@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient, type QueryKey } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { rpc, supabase, unwrap } from './supabase';
+import { round2, todayPH, toNumber } from './utils';
 import type {
   Alert,
   CashCarryover,
@@ -18,6 +19,7 @@ import type {
   InventoryMovementRow,
   InventoryTxn,
   MonthlySummaryRow,
+  PeriodTotals,
   Permission,
   Profile,
   SchoolSettings,
@@ -292,6 +294,32 @@ export function useDashboardMetrics(start: string, end: string) {
   return useQuery({
     queryKey: [...keys.reports, 'dashboard', start, end],
     queryFn: () => rpc<DashboardMetrics>('dashboard_metrics', { p_start: start, p_end: end }),
+  });
+}
+
+/**
+ * Money on hand right now, across all records:
+ * carry-over cash + gross sales − expenses − deficits − fund expenditures.
+ * Deficits are cash shortages, so they always reduce cash (whatever the
+ * Net Sales setting says).
+ */
+export function useMoneyOnHand(enabled = true) {
+  const today = todayPH();
+  return useQuery({
+    queryKey: [...keys.reports, 'money-on-hand', today],
+    enabled,
+    queryFn: async () => {
+      const [totals, spent] = await Promise.all([
+        rpc<PeriodTotals>('report_period_totals', { p_start: '2000-01-01', p_end: today }),
+        supabase.from('fund_transactions').select('amount').eq('transaction_type', 'expenditure').eq('status', 'posted').lte('transaction_date', today),
+      ]);
+      const fundSpent = -(unwrap(spent) as { amount: number | string }[]).reduce((s, r) => s + toNumber(r.amount), 0);
+      const carryover = toNumber(totals.carryover);
+      const gross = toNumber(totals.gross_sales);
+      const expenses = toNumber(totals.expenses);
+      const deficit = toNumber(totals.deficit);
+      return { total: round2(carryover + gross - expenses - deficit - fundSpent), carryover, gross, expenses, deficit, fundSpent };
+    },
   });
 }
 

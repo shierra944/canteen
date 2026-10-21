@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   AlertTriangle,
   ArrowRight,
+  Banknote,
   Boxes,
   CircleCheck,
   PhilippinePeso,
@@ -15,7 +16,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/providers/auth';
 import { useApp } from '@/providers/app';
-import { useAlerts, useDailySummary, useDashboardMetrics, useInventory } from '@/lib/queries';
+import { useAlerts, useDailySummary, useDashboardMetrics, useInventory, useMoneyOnHand } from '@/lib/queries';
 import { supabase, unwrap } from '@/lib/supabase';
 import { resolvePeriod, describePeriod, type Period } from '@/lib/periods';
 import { formatDate, peso, qty, toNumber } from '@/lib/utils';
@@ -85,6 +86,8 @@ export default function DashboardPage() {
           Figures follow the workbook formula (Net Sales = Gross − Expenses{m.deduct_deficit_in_net ? ' − Deficit' : ''}). An administrator should confirm it before reports are signed.
         </Callout>
       )}
+
+      {finance && <MoneyOnHandCard />}
 
       {/* Summary cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
@@ -187,6 +190,31 @@ export default function DashboardPage() {
       {finance && <RecentTransactions />}
 
       <DashboardDetail kind={detail} start={period.start} end={period.end} metrics={m} onClose={() => setDetail(null)} />
+    </div>
+  );
+}
+
+/** All-time cash position — ignores the period picker on purpose. */
+function MoneyOnHandCard() {
+  const { data, isLoading } = useMoneyOnHand();
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      {isLoading || !data ? (
+        <Skeleton className="h-[132px] rounded-2xl" />
+      ) : (
+        <StatCard
+          label="Money on hand"
+          value={peso(data.total)}
+          icon={<Banknote />}
+          tone={data.total < 0 ? 'negative' : 'positive'}
+          sub={
+            <>
+              As of today · carry-over {peso(data.carryover)} + gross sales {peso(data.gross)} − expenses {peso(data.expenses)} − deficits {peso(data.deficit)}
+              {data.fundSpent > 0 && <> − fund spending {peso(data.fundSpent)}</>}
+            </>
+          }
+        />
+      )}
     </div>
   );
 }
