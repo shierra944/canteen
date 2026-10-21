@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { PhilippinePeso, MinusCircle, MoreHorizontal, Pencil, PiggyBank, Plus, Receipt, Search, Undo2, Wallet } from 'lucide-react';
+import { PhilippinePeso, MinusCircle, MoreHorizontal, Pencil, PiggyBank, Plus, Receipt, Search, Trash2, Undo2, Wallet } from 'lucide-react';
 import { useAuth } from '@/providers/auth';
 import { useApp } from '@/providers/app';
 import { useQuery } from '@tanstack/react-query';
@@ -80,6 +80,14 @@ export default function FinancePage() {
   const reverseTxn = useAction((reason: string) => rpc('reverse_financial_transaction', { p_id: reverse!.id, p_reason: reason }), {
     success: 'Transaction reversed. It no longer counts in totals.',
     onSuccess: () => setReverse(null),
+  });
+  const [toDelete, setToDelete] = useState<FinancialTxn | null>(null);
+  const removeTxn = useAction((reason: string) => rpc('delete_financial_transaction', { p_id: toDelete!.id, p_reason: reason }), {
+    success: 'Transaction deleted. It no longer counts in any total.',
+    onSuccess: () => {
+      if (detail?.id === toDelete?.id) setDetail(null);
+      setToDelete(null);
+    },
   });
 
   // Card totals ignore the type filter the cards themselves set,
@@ -310,6 +318,12 @@ export default function FinancePage() {
                           <TD className="whitespace-nowrap text-ink-muted">{r.created_by_name ?? '—'}</TD>
                           <TD><StatusBadge status={r.status} /></TD>
                           <TD align="right" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-end gap-0.5">
+                            {can('finance.correct') && r.source_type !== 'stock_receipt' && (
+                              <Button variant="danger-ghost" size="icon-sm" aria-label={`Delete FT-${r.txn_no}`} title="Delete this entry" onClick={() => setToDelete(r)}>
+                                <Trash2 />
+                              </Button>
+                            )}
                             {r.status === 'posted' && (can('finance.record') || can('finance.correct')) && (
                               <Menu>
                                 <MenuTrigger asChild>
@@ -327,6 +341,7 @@ export default function FinancePage() {
                                 </MenuContent>
                               </Menu>
                             )}
+                            </div>
                           </TD>
                         </TR>
                       ))}
@@ -354,6 +369,15 @@ export default function FinancePage() {
         confirmLabel="Reverse transaction"
         loading={reverseTxn.isPending}
         onConfirm={(r) => reverseTxn.mutate(r)}
+      />
+      <ReasonDialog
+        open={Boolean(toDelete)}
+        onOpenChange={(o) => !o && setToDelete(null)}
+        title={`Delete FT-${toDelete?.txn_no}?`}
+        description={`${toDelete?.description} — ${peso(toDelete?.amount)} (${toDelete ? FIN_TYPE_LABEL[toDelete.transaction_type] : ''}, ${formatDate(toDelete?.transaction_date, 'long')}). It is removed from the list and from every total and report. A copy is kept in the audit log.`}
+        confirmLabel="Delete"
+        loading={removeTxn.isPending}
+        onConfirm={(r) => removeTxn.mutate(r)}
       />
       <Dialog
         open={Boolean(detail)}

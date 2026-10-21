@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, ShoppingBasket } from 'lucide-react';
+import { Eye, ShoppingBasket, Trash2 } from 'lucide-react';
 import { useAuth } from '@/providers/auth';
 import { useApp } from '@/providers/app';
-import { useDailySales } from '@/lib/queries';
+import { useAction, useDailySales } from '@/lib/queries';
+import { rpc } from '@/lib/supabase';
 import { formatDate, peso, qty, toNumber } from '@/lib/utils';
 import { describePeriod } from '@/lib/periods';
 import { PageHeader } from '@/components/layout/AppShell';
@@ -13,7 +14,7 @@ import { Input, Select } from '@/components/ui/form';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/ui/feedback';
 import { Pagination, SortTH, Table, TD, TH, THead, TR, sortRows, type SortDir } from '@/components/ui/table';
-import { FilterBar, FilterField } from '@/components/shared';
+import { FilterBar, FilterField, ReasonDialog } from '@/components/shared';
 import { ExportMenu, PrintableReport } from '@/components/OfficialReport';
 import type { OfficialReport } from '@/lib/export/report';
 import type { DailySale } from '@/lib/types';
@@ -32,6 +33,11 @@ export default function DailySalesHistoryPage() {
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<{ key: keyof DailySale; dir: SortDir }>({ key: 'sale_date', dir: 'desc' });
   const [page, setPage] = useState(1);
+  const [toDelete, setToDelete] = useState<DailySale | null>(null);
+  const remove = useAction((reason: string) => rpc('delete_daily_sale', { p_id: toDelete!.id, p_reason: reason }), {
+    success: 'Daily sales deleted. It no longer counts in any total.',
+    onSuccess: () => setToDelete(null),
+  });
   const { data = [], isLoading, error, refetch } = useDailySales({ start: start || undefined, end: end || undefined, schoolYearId: sy || undefined, status: status || undefined });
 
   const rows = useMemo(() => {
@@ -168,9 +174,16 @@ export default function DailySalesHistoryPage() {
                         </div>
                       </TD>
                       <TD align="right">
-                        <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); navigate(`/daily-sales/${d.id}`); }}>
-                          <Eye /> Open
-                        </Button>
+                        <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="sm" onClick={() => navigate(`/daily-sales/${d.id}`)}>
+                            <Eye /> Open
+                          </Button>
+                          {can('sales.correct') && (
+                            <Button variant="danger-ghost" size="sm" aria-label={`Delete daily sales for ${formatDate(d.sale_date, 'long')}`} title="Delete this day" onClick={() => setToDelete(d)}>
+                              <Trash2 />
+                            </Button>
+                          )}
+                        </div>
                       </TD>
                     </TR>
                   ))}
@@ -191,6 +204,22 @@ export default function DailySalesHistoryPage() {
         </Card>
       </div>
       <PrintableReport report={rows.length ? report() : null} />
+      <ReasonDialog
+        open={Boolean(toDelete)}
+        onOpenChange={(o) => !o && setToDelete(null)}
+        title={toDelete ? `Delete daily sales for ${formatDate(toDelete.sale_date, 'long')}?` : 'Delete daily sales?'}
+        description={
+          toDelete && (
+            <>
+              This removes the day and all {toDelete.line_count} item lines ({peso(toDelete.sales_amount)} sales, {peso(toDelete.canteen_shares)} canteen shares) from every total and report. Any stock it
+              deducted is put back. Expenses, other sales and deficits dated that day are separate entries and stay. A copy is kept in the audit log.
+            </>
+          )
+        }
+        confirmLabel="Delete"
+        loading={remove.isPending}
+        onConfirm={(r) => remove.mutate(r)}
+      />
     </>
   );
 }
