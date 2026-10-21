@@ -3,7 +3,9 @@ import { FileDown, FileSpreadsheet, FileText, Printer } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApp } from '@/providers/app';
 import { useAuth } from '@/providers/auth';
-import { exportCsv, exportExcel, exportPdf, formatCell, headerLines, signatories, type OfficialReport } from '@/lib/export/report';
+import { exportCsv, exportExcel, exportPdf, formatCell, signatories, type OfficialReport } from '@/lib/export/report';
+import { CONTACT_ICONS, LETTERHEAD_FONT, letterheadContent, svgDataUrl } from '@/lib/export/letterhead';
+import type { SchoolSettings } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Button } from './ui/button';
 import { Menu, MenuContent, MenuItem, MenuTrigger } from './ui/menu';
@@ -75,7 +77,6 @@ export function ExportMenu({
 export function PrintableReport({ report, className }: { report: OfficialReport | null; className?: string }) {
   const { settings } = useApp();
   if (!report) return null;
-  const lines = headerLines(settings);
   const sigs = signatories(settings);
   const table = (cols: OfficialReport['columns'], rows: OfficialReport['rows'], totals?: OfficialReport['totals']) => (
     <table className="mt-3 w-full border-collapse text-[10px]">
@@ -114,18 +115,29 @@ export function PrintableReport({ report, className }: { report: OfficialReport 
   );
   return (
     <div className={cn('print-only text-ink', report.orientation === 'landscape' && 'print-landscape', className)}>
-      <div className="flex items-center justify-between">
-        <img src="/logos/deped.png" alt="" className="size-16" />
-        <div className="text-center leading-tight">
-          {lines.map((l, i) => (
-            <div key={i} className={cn(i === 0 && 'italic', i >= 4 && 'font-bold', i === 4 ? 'text-[14px]' : 'text-[11px]')}>
-              {l}
-            </div>
-          ))}
-        </div>
-        <img src={settings?.logo_url || '/logos/qnhs.png'} alt="" className="size-16" />
+      {/* footer pinned to the bottom of every printed page */}
+      <div className="fixed inset-x-0 bottom-0 bg-white px-[6mm] pb-[2mm]">
+        <LetterheadFooter settings={settings} />
       </div>
-      <div className="mt-2 border-t-2 border-[#087A35]" />
+      {/* thead / tfoot repeat on every printed page: header + space for the footer */}
+      <table className="w-full border-collapse">
+        <thead>
+          <tr>
+            <td className="p-0 pb-3">
+              <LetterheadHeader settings={settings} />
+            </td>
+          </tr>
+        </thead>
+        <tfoot>
+          <tr>
+            <td className="p-0">
+              <div className="h-[34mm]" />
+            </td>
+          </tr>
+        </tfoot>
+        <tbody>
+          <tr>
+            <td className="p-0">
       <div className="mt-4 text-center">
         <div className="text-[14px] font-bold uppercase">{report.title}</div>
         <div className="text-[11px] font-bold uppercase">{report.period}</div>
@@ -164,6 +176,67 @@ export function PrintableReport({ report, className }: { report: OfficialReport 
           ))}
         </div>
       )}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+const exact = { printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' } as const;
+
+/** Official DepEd letterhead header (seal, Old English lines, school line, rule). */
+export function LetterheadHeader({ settings }: { settings: SchoolSettings | undefined }) {
+  const t = letterheadContent(settings);
+  return (
+    <div className="text-center leading-tight text-[#595959]" style={exact}>
+      <img src="/logos/deped.png" alt="DepEd seal" className="mx-auto h-[17mm] w-[17mm] object-contain" />
+      <div className="mt-1 text-[15px]" style={{ fontFamily: `"${LETTERHEAD_FONT}", "Old English Text MT", serif` }}>
+        {t.republic}
+      </div>
+      <div className="text-[21px]" style={{ fontFamily: `"${LETTERHEAD_FONT}", "Old English Text MT", serif` }}>
+        {t.department}
+      </div>
+      <div className="mt-0.5 font-[Arial,Helvetica,sans-serif] text-[10.5px]">{t.region}</div>
+      <div className="font-[Arial,Helvetica,sans-serif] text-[11px] font-bold">{t.division}</div>
+      <div className="font-[Arial,Helvetica,sans-serif] text-[11px] font-bold">{t.schoolLine}</div>
+      <div className="mt-1.5 h-[2.5px] bg-[#808080]" />
+    </div>
+  );
+}
+
+/** Official letterhead footer (logos + contact details). */
+export function LetterheadFooter({ settings }: { settings: SchoolSettings | undefined }) {
+  const t = letterheadContent(settings);
+  const rows: [string, string, boolean][] = [
+    [CONTACT_ICONS.location, t.address, false],
+    [CONTACT_ICONS.phone, t.phone, false],
+    [CONTACT_ICONS.email, t.email, true],
+    [CONTACT_ICONS.facebook, t.facebook, false],
+  ];
+  return (
+    <div className="font-[Arial,Helvetica,sans-serif]" style={exact}>
+      <div className="h-px bg-[#808080]" />
+      <div className="flex items-center gap-5 pt-2">
+        <div className="flex w-[19mm] flex-col items-center">
+          <img src="/logos/bagong-pilipinas.jpg" alt="Bagong Pilipinas" className="h-[15mm] object-contain" />
+          <span className="mt-0.5 text-[6.5px] font-bold tracking-wide text-[#5B6E8F]">BAGONG PILIPINAS</span>
+        </div>
+        <div className="flex w-[29mm] flex-col items-center gap-1">
+          <img src="/logos/deped-wordmark.webp" alt="DepEd" className="h-[11mm] object-contain" />
+          <img src="/logos/matatag.png" alt="MATATAG" className="h-[8mm] object-contain" />
+        </div>
+        <img src={t.qnhsLogo} alt="Quiot National High School" className="h-[21mm] w-[21mm] object-contain" />
+        <ul className="ml-6 space-y-[3px] text-[11px] text-[#555]">
+          {rows.map(([icon, text, link]) => (
+            <li key={text} className="flex items-center gap-2">
+              <img src={svgDataUrl(icon)} alt="" className="h-[13px] w-[13px]" />
+              <span className={link ? 'text-[#2F6FB6] underline' : ''}>{text}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }

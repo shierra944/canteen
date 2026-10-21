@@ -2,6 +2,7 @@
 // carries exactly the same filtered rows and database-calculated totals.
 import type { SchoolSettings, Signatory } from '../types';
 import { downloadBlob, formatDate, peso, qty, toNumber } from '../utils';
+import { renderLetterhead } from './letterhead';
 
 export type ColFormat = 'text' | 'peso' | 'qty' | 'date' | 'percent';
 
@@ -44,17 +45,6 @@ export function formatCell(v: unknown, f: ColFormat = 'text'): string {
   }
 }
 
-export function headerLines(s: SchoolSettings | undefined): string[] {
-  return [
-    s?.header_line1 ?? 'Republic of the Philippines',
-    s?.header_line2 ?? 'Department of Education',
-    s?.region ?? 'Region VII, Central Visayas',
-    s?.division ?? 'Schools Division of Cebu City, South District 2',
-    s?.school_name ?? 'QUIOT NATIONAL HIGH SCHOOL',
-    `School ID: ${s?.school_id_no ?? '312515'}`,
-  ];
-}
-
 export function signatories(s: SchoolSettings | undefined): Signatory[] {
   if (s && !s.export_include_signatories) return [];
   return s?.signatories ?? [];
@@ -79,24 +69,9 @@ export function exportCsv(r: OfficialReport) {
   downloadBlob(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }), `${r.filename}.csv`);
 }
 
-async function fetchImageBase64(url: string): Promise<string | null> {
-  try {
-    const res = await fetch(url);
-    const blob = await res.blob();
-    return await new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(blob);
-    });
-  } catch {
-    return null;
-  }
-}
-
 // ----------------------------------------------------------------- Excel
 export async function exportExcel(r: OfficialReport, settings: SchoolSettings | undefined) {
-  const ExcelJS = (await import('exceljs')).default;
+  const [ExcelJS, letterhead] = await Promise.all([import('exceljs').then((m) => m.default), renderLetterhead(settings)]);
   const wb = new ExcelJS.Workbook();
   wb.creator = 'QNHS Canteen System';
   wb.created = new Date();
@@ -110,11 +85,25 @@ export async function exportExcel(r: OfficialReport, settings: SchoolSettings | 
     return { width: r.columns[i]?.format === 'date' ? Math.max(w, 15) : w };
   });
 
-  const [deped, qnhs] = await Promise.all([fetchImageBase64('/logos/deped.png'), fetchImageBase64(settings?.logo_url || '/logos/qnhs.png')]);
-  if (deped) ws.addImage(wb.addImage({ base64: deped, extension: 'png' }), { tl: { col: 0.1, row: 0.1 }, ext: { width: 64, height: 64 } });
-  if (qnhs) ws.addImage(wb.addImage({ base64: qnhs, extension: 'png' }), { tl: { col: allCols - 1 + 0.2, row: 0.1 }, ext: { width: 64, height: 64 } });
+  // Letterhead image across the sheet width (Excel column width ≈ 7 px per unit)
+  const sheetPx = (ws.columns as { width?: number }[]).reduce((a, c) => a + (c.width ?? 10) * 7 + 5, 0);
+  const imgW = Math.min(sheetPx, 900);
+  const imgX = (sheetPx - imgW) / 2;
+  const colAt = (px: number) => {
+    // fractional column index for a pixel offset
+    let acc = 0;
+    for (let i = 0; i < allCols; i++) {
+      const w = ((ws.columns as { width?: number }[])[i].width ?? 10) * 7 + 5;
+      if (acc + w > px) return i + (px - acc) / w;
+      acc += w;
+    }
+    return allCols;
+  };
+  const ROW_PX = 20;
+  const headerH = (imgW * letterhead.header.height) / letterhead.header.width;
+  ws.addImage(wb.addImage({ base64: letterhead.header.dataUrl, extension: 'png' }), { tl: { col: colAt(imgX), row: 0.2 }, ext: { width: imgW, height: headerH } });
+  let row = Math.ceil(headerH / ROW_PX) + 2;
 
-  let row = 1;
   const merged = (text: string, font: Partial<import('exceljs').Font>, height?: number) => {
     ws.mergeCells(row, 1, row, allCols);
     const c = ws.getCell(row, 1);
@@ -124,8 +113,6 @@ export async function exportExcel(r: OfficialReport, settings: SchoolSettings | 
     if (height) ws.getRow(row).height = height;
     row++;
   };
-  headerLines(settings).forEach((l, i) => merged(l, { size: i === 4 ? 12 : 10, bold: i >= 4, italic: i === 0 }));
-  row++;
   merged(r.title.toUpperCase(), { size: 13, bold: true }, 20);
   merged(r.period.toUpperCase(), { bold: true });
   if (r.schoolYear) merged(`SY: ${r.schoolYear}`, { bold: false });
@@ -209,7 +196,13 @@ export async function exportExcel(r: OfficialReport, settings: SchoolSettings | 
       ws.getCell(row + 4, col).value = s.position;
       ws.getCell(row + 4, col).font = { name: 'Arial', size: 9 };
     });
+    row += 5;
   }
+
+  // Letterhead footer below the content
+  row += 2;
+  const footerH = (imgW * letterhead.footer.height) / letterhead.footer.width;
+  ws.addImage(wb.addImage({ base64: letterhead.footer.dataUrl, extension: 'png' }), { tl: { col: colAt(imgX), row: row - 1 }, ext: { width: imgW, height: footerH } });
 
   const buf = await wb.xlsx.writeBuffer();
   downloadBlob(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `${r.filename}.xlsx`);
@@ -217,26 +210,28 @@ export async function exportExcel(r: OfficialReport, settings: SchoolSettings | 
 
 // ------------------------------------------------------------------- PDF
 export async function exportPdf(r: OfficialReport, settings: SchoolSettings | undefined) {
-  const [{ jsPDF }, autoTableMod] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
+  const [{ jsPDF }, autoTableMod, letterhead] = await Promise.all([import('jspdf'), import('jspdf-autotable'), renderLetterhead(settings)]);
   const autoTable = autoTableMod.default;
   const doc = new jsPDF({ orientation: r.orientation ?? 'portrait', unit: 'pt', format: 'a4' });
   const W = doc.internal.pageSize.getWidth();
+  const H = doc.internal.pageSize.getHeight();
   const margin = 36;
-  const [deped, qnhs] = await Promise.all([fetchImageBase64('/logos/deped.png'), fetchImageBase64(settings?.logo_url || '/logos/qnhs.png')]);
-  if (deped) doc.addImage(deped, 'PNG', margin, 28, 58, 58);
-  if (qnhs) doc.addImage(qnhs, 'PNG', W - margin - 58, 28, 58, 58);
 
-  let y = 38;
-  headerLines(settings).forEach((l, i) => {
-    doc.setFont('helvetica', i >= 4 ? 'bold' : i === 0 ? 'italic' : 'normal');
-    doc.setFontSize(i === 4 ? 12 : 9.5);
-    doc.text(l, W / 2, y, { align: 'center' });
-    y += i === 3 ? 15 : 12.5;
-  });
-  doc.setDrawColor(8, 122, 53);
-  doc.setLineWidth(1.2);
-  doc.line(margin, y, W - margin, y);
-  y += 22;
+  // Letterhead geometry (drawn on every page at the end)
+  const lhW = Math.min(W - margin * 2, 540);
+  const lhX = (W - lhW) / 2;
+  const headerH = (lhW * letterhead.header.height) / letterhead.header.width;
+  const footerH = (lhW * letterhead.footer.height) / letterhead.footer.width;
+  const HEADER_TOP = 18;
+  const FOOTER_BOTTOM = 14;
+  const CONTENT_TOP = HEADER_TOP + headerH + 16;
+  const CONTENT_BOTTOM = H - FOOTER_BOTTOM - footerH - 18;
+
+  let y = CONTENT_TOP + 8;
+  const newPage = () => {
+    doc.addPage();
+    y = CONTENT_TOP + 8;
+  };
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12.5);
   doc.text(r.title.toUpperCase(), W / 2, y, { align: 'center' });
@@ -262,35 +257,25 @@ export async function exportPdf(r: OfficialReport, settings: SchoolSettings | un
   const table = (cols: ReportColumn[], rows: Record<string, unknown>[], totals?: Record<string, unknown> | null) => {
     autoTable(doc, {
       startY: y,
-      margin: { left: margin, right: margin },
+      // keep tables clear of the letterhead on every page
+      margin: { left: margin, right: margin, top: CONTENT_TOP, bottom: H - CONTENT_BOTTOM },
       head: [cols.map((c) => (c.format === 'peso' ? `${c.header} (PHP)` : c.header).toUpperCase())],
       body: rows.map((row) => cols.map((c) => pdfCell(row[c.key], c.format))),
       foot: totals ? [cols.map((c) => pdfCell(totals[c.key], c.format))] : undefined,
+      showFoot: 'lastPage',
       theme: 'grid',
       styles: { font: 'helvetica', fontSize: 8, cellPadding: 3.5, lineColor: [190, 200, 193], lineWidth: 0.5, textColor: [32, 41, 35], halign: 'center', valign: 'middle' },
       headStyles: { fillColor: [8, 122, 53], textColor: 255, fontStyle: 'bold', halign: 'center', valign: 'middle' },
       footStyles: { fillColor: [234, 244, 236], textColor: [32, 41, 35], fontStyle: 'bold', halign: 'center', valign: 'middle' },
       // dates never wrap: the column grows to fit the date on one line
       columnStyles: Object.fromEntries(cols.map((c, i) => [i, c.format === 'date' ? { halign: 'center', cellWidth: 'wrap' } : { halign: 'center' }])),
-      didDrawPage: () => {
-        const H = doc.internal.pageSize.getHeight();
-        doc.setFontSize(7.5);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(107, 117, 109);
-        doc.text(`${settings?.school_name ?? 'QUIOT NATIONAL HIGH SCHOOL'} · ${r.title}`, margin, H - 18);
-        doc.text(`Page ${doc.getNumberOfPages()}`, W - margin, H - 18, { align: 'right' });
-        doc.setTextColor(32, 41, 35);
-      },
     });
     y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 16;
   };
 
   if (r.columns.length) table(r.columns, r.rows, r.totals);
   r.sections?.forEach((s) => {
-    if (y > doc.internal.pageSize.getHeight() - 120) {
-      doc.addPage();
-      y = 48;
-    }
+    if (y > CONTENT_BOTTOM - 60) newPage();
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.text(s.title, margin, y);
@@ -301,10 +286,7 @@ export async function exportPdf(r: OfficialReport, settings: SchoolSettings | un
   if (r.summary?.length) {
     const boxW = 260;
     r.summary.forEach((s) => {
-      if (y > doc.internal.pageSize.getHeight() - 60) {
-        doc.addPage();
-        y = 48;
-      }
+      if (y > CONTENT_BOTTOM - 10) newPage();
       doc.setFont('helvetica', s.emphasis ? 'bold' : 'normal');
       doc.setFontSize(9);
       doc.text(s.label, W - margin - boxW, y);
@@ -318,16 +300,14 @@ export async function exportPdf(r: OfficialReport, settings: SchoolSettings | un
     doc.setFont('helvetica', 'italic');
     doc.setFontSize(7.5);
     const lines = doc.splitTextToSize(n, W - margin * 2);
+    if (y + lines.length * 10 > CONTENT_BOTTOM) newPage();
     doc.text(lines, margin, y);
     y += lines.length * 10;
   });
 
   const sigs = signatories(settings);
   if (sigs.length) {
-    if (y > doc.internal.pageSize.getHeight() - 110) {
-      doc.addPage();
-      y = 60;
-    }
+    if (y + 80 > CONTENT_BOTTOM) newPage();
     y += 26;
     const colW = (W - margin * 2) / sigs.length;
     sigs.forEach((s, i) => {
@@ -346,6 +326,21 @@ export async function exportPdf(r: OfficialReport, settings: SchoolSettings | un
       doc.setFontSize(9);
       doc.text(s.position, x + 10, y + 53);
     });
+  }
+
+  // Letterhead header + footer and page numbers on every page
+  const pages = doc.getNumberOfPages();
+  for (let p = 1; p <= pages; p++) {
+    doc.setPage(p);
+    doc.addImage(letterhead.header.dataUrl, 'PNG', lhX, HEADER_TOP, lhW, headerH);
+    doc.addImage(letterhead.footer.dataUrl, 'PNG', lhX, H - FOOTER_BOTTOM - footerH, lhW, footerH);
+    if (pages > 1) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(107, 117, 109);
+      doc.text(`Page ${p} of ${pages}`, W - margin, H - FOOTER_BOTTOM - footerH - 6, { align: 'right' });
+      doc.setTextColor(32, 41, 35);
+    }
   }
 
   doc.save(`${r.filename}.pdf`);
