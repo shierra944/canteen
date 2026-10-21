@@ -53,13 +53,32 @@ export function SheetCombobox({
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Opening the list shows EVERY option; it only narrows once the user types.
+  const [filtering, setFiltering] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
   const matches = useMemo(() => {
-    const s = value.trim().toLowerCase();
-    return options.filter((o) => !s || `${o.label} ${o.sub ?? ''} ${o.keywords ?? ''}`.toLowerCase().includes(s)).slice(0, 10);
-  }, [options, value]);
+    const s = filtering ? value.trim().toLowerCase() : '';
+    return options
+      .filter((o) => !s || `${o.label} ${o.sub ?? ''} ${o.keywords ?? ''}`.toLowerCase().includes(s))
+      .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
+  }, [options, value, filtering]);
   // row 0 is always "Type manually"
   const total = matches.length + 1;
-  useEffect(() => setActive(matches.length ? 1 : 0), [value, matches.length]);
+  useEffect(() => {
+    if (filtering) return setActive(matches.length ? 1 : 0);
+    // when just opened, highlight the current value if it is in the list
+    const idx = matches.findIndex((o) => o.label.toLowerCase() === value.trim().toLowerCase());
+    setActive(idx >= 0 ? idx + 1 : matches.length ? 1 : 0);
+  }, [value, matches, filtering]);
+  // keep the highlighted option visible while using the arrow keys
+  useEffect(() => {
+    if (!open) return;
+    listRef.current?.querySelector(`[data-idx="${active}"]`)?.scrollIntoView({ block: 'nearest' });
+  }, [active, open]);
+  const openList = () => {
+    if (!open) setFiltering(false);
+    setOpen(true);
+  };
 
   const chooseManual = () => {
     onManualChange(true);
@@ -111,10 +130,11 @@ export function SheetCombobox({
             ref={inputRef}
             value={value}
             disabled={disabled}
-            onFocus={() => setOpen(true)}
-            onClick={() => setOpen(true)}
+            onFocus={openList}
+            onClick={openList}
             onChange={(e) => {
               onText(e.target.value);
+              setFiltering(true);
               setOpen(true);
             }}
             onKeyDown={(e) => {
@@ -155,10 +175,12 @@ export function SheetCombobox({
           onInteractOutside={(e) => {
             if (e.target === inputRef.current) e.preventDefault();
           }}
-          className="z-50 max-h-[340px] w-[340px] overflow-y-auto rounded-xl border border-surface-border bg-white p-1.5 shadow-raised"
+          className="z-50 max-h-[380px] w-[360px] overflow-y-auto rounded-xl border border-surface-border bg-white p-1.5 shadow-raised"
         >
+          <div ref={listRef}>
           <button
             type="button"
+            data-idx={0}
             onMouseEnter={() => setActive(0)}
             onClick={chooseManual}
             className={cn('flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-info-600', active === 0 ? 'bg-info-50' : 'hover:bg-surface-page')}
@@ -167,11 +189,18 @@ export function SheetCombobox({
             {value.trim() && <span className="truncate font-normal text-ink-muted">— keep “{value.trim()}”</span>}
           </button>
           <div className="my-1 h-px bg-surface-border" />
-          {matches.length === 0 && <div className="px-3 py-2 text-xs text-ink-muted">{emptyText}</div>}
+          {matches.length === 0 ? (
+            <div className="px-3 py-2 text-xs text-ink-muted">{emptyText}</div>
+          ) : (
+            <div className="px-3 pb-1 pt-0.5 text-[11px] font-medium uppercase tracking-wider text-ink-soft">
+              {filtering && value.trim() ? `${matches.length} match${matches.length === 1 ? '' : 'es'}` : `All ${matches.length}`}
+            </div>
+          )}
           {matches.map((o, idx) => (
             <button
               key={o.id}
               type="button"
+              data-idx={idx + 1}
               onMouseEnter={() => setActive(idx + 1)}
               onClick={() => {
                 onPick(o);
@@ -201,6 +230,7 @@ export function SheetCombobox({
               </button>
             </>
           )}
+          </div>
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
