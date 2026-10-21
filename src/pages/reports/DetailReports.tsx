@@ -40,13 +40,14 @@ export function DailySalesReport({ filters }: { filters: ReportFilters }) {
       .filter((d) => d.items.length > 0);
   }, [data, filters.item, filters.invCategoryId, invCat]);
   const grand = days.reduce(
-    (a, d) => ({ sold: a.sold + d.totals.sold, amount: a.amount + d.totals.amount, unsold: a.unsold + d.totals.unsold, unsold_amount: a.unsold_amount + d.totals.unsold_amount, share: a.share + d.totals.share, canteen_share: a.canteen_share + d.totals.canteen_share, remit: a.remit + d.totals.remit }),
-    { sold: 0, amount: 0, unsold: 0, unsold_amount: 0, share: 0, canteen_share: 0, remit: 0 },
+    (a, d) => ({ total: a.total + d.totals.total, sold: a.sold + d.totals.sold, amount: a.amount + d.totals.amount, unsold: a.unsold + d.totals.unsold, unsold_amount: a.unsold_amount + d.totals.unsold_amount, share: a.share + d.totals.share, canteen_share: a.canteen_share + d.totals.canteen_share, remit: a.remit + d.totals.remit }),
+    { total: 0, sold: 0, amount: 0, unsold: 0, unsold_amount: 0, share: 0, canteen_share: 0, remit: 0 },
   );
   const cols = [
     { key: 'no', header: 'No.', width: 6 },
     { key: 'item', header: 'Item', width: 26 },
     { key: 'consignee', header: 'Consignee', width: 16 },
+    { key: 'total', header: 'Total Qty', format: 'qty' as const, width: 10 },
     { key: 'sold', header: 'Qty Sold', format: 'qty' as const, width: 10 },
     { key: 'price', header: 'Selling Price', format: 'peso' as const, width: 12 },
     { key: 'amount', header: 'Sales Amount', format: 'peso' as const, width: 13 },
@@ -66,11 +67,12 @@ export function DailySalesReport({ filters }: { filters: ReportFilters }) {
     sections: days.map((d) => ({
       title: formatDate(d.sale.sale_date, 'long'),
       columns: cols,
-      rows: d.items.map((i, idx) => ({ no: idx + 1, item: i.item_name_snapshot, consignee: i.is_canteen_stock ? 'Canteen stock' : i.consignee, sold: i.sold_quantity, price: i.unit_price, amount: i.sales_amount, unsold: i.unsold_quantity, unsold_amount: i.unsold_amount, canteen_share: i.canteen_share, remit: i.is_canteen_stock ? null : i.remit_amount })),
-      totals: { item: 'DAILY TOTAL', sold: d.totals.sold, amount: d.totals.amount, unsold: d.totals.unsold, unsold_amount: d.totals.unsold_amount, canteen_share: d.totals.canteen_share, remit: d.totals.remit },
+      rows: d.items.map((i, idx) => ({ no: idx + 1, item: i.item_name_snapshot, consignee: i.is_canteen_stock ? 'Canteen stock' : i.consignee, total: i.total_quantity, sold: i.sold_quantity, price: i.unit_price, amount: i.sales_amount, unsold: i.unsold_quantity, unsold_amount: i.unsold_amount, canteen_share: i.canteen_share, remit: i.is_canteen_stock ? null : i.remit_amount })),
+      totals: { item: 'DAILY TOTAL', total: d.totals.total, sold: d.totals.sold, amount: d.totals.amount, unsold: d.totals.unsold, unsold_amount: d.totals.unsold_amount, canteen_share: d.totals.canteen_share, remit: d.totals.remit },
     })),
     summary: [
       { label: 'Days reported', value: String(days.length) },
+      { label: 'Total quantity', value: qty(grand.total) },
       { label: 'Total units sold', value: qty(grand.sold) },
       { label: 'Total sales amount', value: peso(grand.amount), emphasis: true },
       { label: 'Total unsold amount', value: peso(grand.unsold_amount) },
@@ -105,6 +107,7 @@ export function DailySalesReport({ filters }: { filters: ReportFilters }) {
                       <TH>No.</TH>
                       <TH>Item</TH>
                       <TH>Consignee</TH>
+                      <TH align="right">Total qty</TH>
                       <TH align="right">Sold</TH>
                       <TH align="right">Price</TH>
                       <TH align="right">Amount</TH>
@@ -120,6 +123,7 @@ export function DailySalesReport({ filters }: { filters: ReportFilters }) {
                         <TD className="text-ink-muted">{i.line_no}</TD>
                         <TD className="font-medium">{i.item_name_snapshot}</TD>
                         <TD className="text-ink-muted">{i.consignee ?? '—'}</TD>
+                        <TD align="right">{qty(i.total_quantity)}</TD>
                         <TD align="right">{qty(i.sold_quantity)}</TD>
                         <TD align="right">{peso(i.unit_price)}</TD>
                         <TD align="right" className="font-medium">{peso(i.sales_amount)}</TD>
@@ -134,6 +138,7 @@ export function DailySalesReport({ filters }: { filters: ReportFilters }) {
               </div>
             ))}
             <div className="flex flex-wrap justify-end gap-6 bg-brand-50/60 px-5 py-3 text-sm font-semibold">
+              <span>Total qty: {qty(grand.total)}</span>
               <span>Units sold: {qty(grand.sold)}</span>
               <span>Sales: {peso(grand.amount)}</span>
               <span>Unsold: {qty(grand.unsold)} ({peso(grand.unsold_amount)})</span>
