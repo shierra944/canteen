@@ -56,7 +56,10 @@ export default {
       },
       keyframes: {
         'fade-in': { from: { opacity: '0' }, to: { opacity: '1' } },
-        'scale-in': { from: { opacity: '0', transform: 'scale(0.97)' }, to: { opacity: '1', transform: 'scale(1)' } },
+        // uses the separate `scale` property so it never overrides the
+        // translate(-50%, -50%) that centres dialogs (a `transform` keyframe
+        // would make them slide in from the bottom-right)
+        'scale-in': { from: { opacity: '0', scale: '0.97' }, to: { opacity: '1', scale: '1' } },
         'slide-in-left': { from: { transform: 'translateX(-100%)' }, to: { transform: 'translateX(0)' } },
         shimmer: { '100%': { transform: 'translateX(100%)' } },
       },
