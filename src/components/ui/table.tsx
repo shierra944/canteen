@@ -86,16 +86,54 @@ export function SortTH<K extends string>({
   );
 }
 
-export function Pagination({ page, pageSize, total, onPage }: { page: number; pageSize: number; total: number; onPage: (p: number) => void }) {
-  const pages = Math.max(1, Math.ceil(total / pageSize));
+/** pageSize 0 = show all rows */
+export function Pagination({
+  page,
+  pageSize,
+  total,
+  onPage,
+  onPageSize,
+  pageSizeOptions = [10, 15, 25, 50, 100, 0],
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  onPage: (p: number) => void;
+  /** when given, shows a "Rows per page" selector */
+  onPageSize?: (size: number) => void;
+  pageSizeOptions?: number[];
+}) {
+  const size = pageSize > 0 ? pageSize : Math.max(total, 1);
+  const pages = Math.max(1, Math.ceil(total / size));
   if (total === 0) return null;
-  const from = (page - 1) * pageSize + 1;
-  const to = Math.min(total, page * pageSize);
+  const from = (page - 1) * size + 1;
+  const to = Math.min(total, page * size);
   return (
-    <div className="flex items-center justify-between gap-3 border-t border-surface-border px-4 py-3 text-[13px] text-ink-muted">
-      <span className="tabular">
-        {from}–{to} of {total}
-      </span>
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-surface-border px-4 py-3 text-[13px] text-ink-muted">
+      <div className="flex flex-wrap items-center gap-4">
+        <span className="tabular">
+          {from}–{to} of {total}
+        </span>
+        {onPageSize && (
+          <label className="inline-flex items-center gap-2">
+            Rows per page
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                onPageSize(Number(e.target.value));
+                onPage(1);
+              }}
+              className="h-8 rounded-lg border border-surface-border bg-white px-2 text-[13px] text-ink focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+            >
+              {pageSizeOptions.map((o) => (
+                <option key={o} value={o}>
+                  {o === 0 ? 'All' : o}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
       <div className="flex items-center gap-1">
         <Button variant="ghost" size="icon-sm" disabled={page <= 1} onClick={() => onPage(page - 1)} aria-label="Previous page">
           <ChevronLeft />

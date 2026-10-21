@@ -26,7 +26,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useConsignees, useProductTotals } from '@/lib/queries';
 
 type SortKey = 'name' | 'delivered' | 'sold' | 'unit_cost' | 'selling_price' | 'stock_value';
-const PAGE = 15;
+const PAGE_SIZE_KEY = 'qnhs.productsPageSize';
 
 export default function InventoryPage() {
   const { can } = useAuth();
@@ -63,6 +63,23 @@ export default function InventoryPage() {
       }),
     [items, productTotals],
   );
+  // rows per page (0 = all), remembered on this browser
+  const [pageSize, setPageSize] = useState<number>(() => {
+    try {
+      const v = Number(localStorage.getItem(PAGE_SIZE_KEY));
+      return Number.isFinite(v) && v >= 0 && localStorage.getItem(PAGE_SIZE_KEY) !== null ? v : 15;
+    } catch {
+      return 15;
+    }
+  });
+  const changePageSize = (n: number) => {
+    setPageSize(n);
+    try {
+      localStorage.setItem(PAGE_SIZE_KEY, String(n));
+    } catch {
+      /* storage unavailable — applies to this visit only */
+    }
+  };
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
     const rows = enriched.filter(
@@ -77,7 +94,7 @@ export default function InventoryPage() {
     return sortRows(rows, sort.key, sort.dir);
   }, [enriched, search, category, kind, consigneeId, status, sort, showArchived]);
 
-  const pageRows = filtered.slice((page - 1) * PAGE, page * PAGE);
+  const pageRows = pageSize > 0 ? filtered.slice((page - 1) * pageSize, page * pageSize) : filtered;
   const totals = useMemo(
     () => ({
       value: filtered.reduce((a, i) => a + toNumber(i.stock_value), 0),
@@ -194,7 +211,7 @@ export default function InventoryPage() {
             <FilterField label="Search" className="min-w-[220px] flex-1">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-muted" />
-                <Input className="pl-9" placeholder="Name, code or supplier" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
+                <Input className="pl-9" placeholder="Product, consignee or supplier" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
               </div>
             </FilterField>
             <FilterField label="Category">
@@ -355,7 +372,7 @@ export default function InventoryPage() {
                   </tr>
                 </tfoot>
               </Table>
-              <Pagination page={page} pageSize={PAGE} total={filtered.length} onPage={setPage} />
+              <Pagination page={page} pageSize={pageSize} total={filtered.length} onPage={setPage} onPageSize={changePageSize} />
             </>
           )}
         </Card>
